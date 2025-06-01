@@ -20,3 +20,6 @@ A bunch of stuff that doesn't work!
 
 
 (The code was written entirely be the same Gemini it runs on)
+
+If you have any ideas on how I could improve this little project email me at mostlyroblox@duck.com 
+(Or fork it yourself, your choice)
