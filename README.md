@@ -17,3 +17,6 @@ Microphone access!
 As many models as you can afford!
 
 A bunch of stuff that doesn't work!
+
+
+(The code was written entirely be the same Gemini it runs on)
