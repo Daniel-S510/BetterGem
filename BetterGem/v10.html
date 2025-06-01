@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini AI Chat</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            overscroll-behavior: none;
+        }
+        /* Custom scrollbar styles */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background-color: #94a3b8; /* slate-400 */
+            border-radius: 4px;
+        }
+        html.dark ::-webkit-scrollbar-thumb {
+            background-color: #475569; /* slate-600 */
+        }
+        ::-webkit-scrollbar-track {
+            background-color: #f1f5f9; /* slate-100 */
+        }
+        html.dark ::-webkit-scrollbar-track {
+            background-color: #1e293b; /* slate-800 */
+        }
+
+        /* Chat bubble styles - Removed hardcoded colors to rely on Tailwind */
+        .chat-bubble {
+            max-width: 75%;
+            padding: 10px 15px;
+            border-radius: 20px;
+            margin-bottom: 10px;
+            word-wrap: break-word;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        .user-bubble {
+            margin-left: auto;
+            border-bottom-right-radius: 5px;
+        }
+        .ai-bubble {
+            margin-right: auto;
+            border-bottom-left-radius: 5px;
+        }
+        /* System message bubble style */
+        .system-bubble {
+            text-align: center;
+            font-size: 0.875rem; /* text-sm */
+            color: #64748b; /* slate-500 */
+            width: 100%;
+            max-width: 100%;
+            background-color: transparent;
+            box-shadow: none;
+            margin-left: 0;
+            margin-right: 0;
+            padding: 5px 0;
+        }
+
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.5);
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-content {
+            margin: auto;
+            padding: 20px;
+            border: 1px solid #888; /* Fallback border */
+            width: 90%;
+            max-width: 500px;
+            border-radius: 8px;
+            transition: background-color 0.3s, color 0.3s, border-color 0.3s;
+        }
+        .close-button {
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            transition: color 0.3s;
+        }
+        .close-button:hover,
+        .close-button:focus {
+            text-decoration: none;
+            cursor: pointer;
+        }
+        /* Microphone and Speaker active states */
+        .mic-active svg, .speaker-active svg {
+            color: #ef4444; /* red-500 */
+        }
+        html.dark ::-webkit-scrollbar-thumb {
+             color: #f87171; /* red-400 */
+        }
+        /* Voice select dropdown width */
+        #voice-select-dropdown {
+            max-width: 150px; /* Limit width of voice selector */
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* Chat list item active state */
+        .chat-list-item.active {
+            background-color: #e2e8f0; /* slate-200 */
+            font-weight: 600; /* font-semibold */
+        }
+        html.dark .chat-list-item.active {
+            background-color: #334155; /* slate-700 */
+        }
+
+        /* Ensure main content takes remaining height */
+        .flex-container {
+            display: flex;
+            flex: 1; /* Allows it to grow and fill available space */
+            overflow: hidden; /* Prevents overflow issues with flex items */
+        }
+    </style>
+    <script>
+        // Apply theme ASAP to avoid FOUC (Flash Of Unstyled Content)
+        // This script runs before the DOM is fully loaded, setting the initial theme.
+        // The theme is now permanently 'light' unless the user's system prefers dark mode.
+        const initialTheme = localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        if (initialTheme === 'dark') {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+        // Remove theme preference from local storage if it exists, as it's no longer user-selectable
+        localStorage.removeItem('theme');
+    </script>
+</head>
+<body class="bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200 flex flex-col h-screen transition-colors duration-300">
+
+    <header class="bg-slate-800 dark:bg-slate-950 text-white p-4 shadow-md">
+        <div class="container mx-auto flex justify-between items-center">
+            <h1 class="text-xl font-semibold">Gemini AI Chat</h1>
+            <button id="settings-button" class="p-2 rounded-md hover:bg-slate-700 dark:hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500 dark:focus:ring-slate-400">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 0 1 1.45.12l.773.774c.39.39.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.108 1.204.165.397.505.71.93.78l.893.15c.543.09.94.56.94 1.11v1.093c0 .55-.397 1.02-.94 1.11l-.893.149c-.425.07-.765.383-.93.78-.165.398-.143.854.107 1.204l.527.738c.32.447.27.96-.12 1.45l-.774.773a1.125 1.125 0 0 1-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.397.165-.71.505-.78.93l-.15.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.149-.894c-.07-.424-.384-.764-.78-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-.96.27-1.45-.12l-.773-.774a1.125 1.125 0 0 1-.12-1.45l.527-.737c.25-.35.272-.806.108-1.204-.165-.397-.505-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.11v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.108-1.204l-.526-.738a1.125 1.125 0 0 1 .12-1.45l.773-.773a1.125 1.125 0 0 1 1.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.93l.15-.893Z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                </svg>
+            </button>
+        </div>
+    </header>
+
+    <div class="flex-container flex-1 w-full max-w-7xl mx-auto py-4 px-2 sm:px-4">
+        <aside class="w-full sm:w-64 bg-white dark:bg-slate-800 shadow rounded-lg p-4 mr-4 flex flex-col flex-shrink-0">
+            <h2 class="text-lg font-semibold text-slate-700 dark:text-slate-200 mb-4">Chats</h2>
+            <button id="new-chat-button" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg shadow transition duration-150 ease-in-out mb-4">
+                + New Chat
+            </button>
+            <div id="chat-list" class="flex-1 overflow-y-auto space-y-2">
+                </div>
+        </aside>
+
+        <main id="chat-container" class="flex-1 flex flex-col">
+            <div id="chat-messages" class="flex-1 space-y-4 overflow-y-auto p-4 bg-white dark:bg-slate-800 shadow rounded-lg mb-4">
+                </div>
+
+            <div class="bg-white dark:bg-slate-800 p-4 shadow rounded-lg">
+                <div id="error-message" class="text-red-500 dark:text-red-400 text-sm mb-2 hidden"></div>
+                <div id="api-key-prompt" class="text-amber-600 dark:text-amber-400 text-sm mb-2 hidden">
+                    API Key not set. Please <button id="open-settings-from-prompt" class="underline font-semibold">set your API Key</button> in settings.
+                </div>
+                <div class="flex items-center space-x-2">
+                    <button id="mic-button" title="Toggle Microphone" class="p-3 rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-slate-600 dark:text-slate-300">
+                        <svg id="mic-icon-idle" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 256 256"><path d="M128,176a48.05,48.05,0,0,0,48-48V64a48,48,0,0,0-96,0v64A48.05,48.05,0,0,0,128,176ZM96,64a32,32,0,0,1,64,0v64a32,32,0,0,1-64,0Zm40,151.6V240a8,8,0,0,1-16,0V215.6A80.07,80.07,0,0,1,48,128a8,8,0,0,1,16,0a64,64,0,0,0,128,0,8,8,0,0,1,16,0A80.07,80.07,0,0,1,136,215.6Z"></path></svg>
+                        <svg id="mic-icon-active" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 256 256" class="hidden"><path d="M128,176a48.05,48.05,0,0,0,48-48V64a48,48,0,0,0-96,0v64A48.05,48.05,0,0,0,128,176ZM96,64a32,32,0,0,1,64,0v64a32,32,0,0,1-64,0Zm40,151.6V240a8,8,0,0,1-16,0V215.6A80.07,80.07,0,0,1,48,128a8,8,0,0,1,16,0a64,64,0,0,0,128,0,8,8,0,0,1,16,0A80.07,80.07,0,0,1,136,215.6Z"></path></svg>
+                    </button>
+                    <button id="speaker-toggle-button" title="Toggle AI Voice" class="p-3 rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-slate-600 dark:text-slate-300">
+                        <svg id="speaker-icon-on" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 16 16" class="hidden"><path d="M11.536 14.01A8.473 8.473 0 0 0 14.026 8a8.473 8.473 0 0 0-2.49-6.01l-.708.707A7.476 7.476 0 0 1 13.025 8c0 2.071-.84 3.946-2.197 5.303l.708.707z"/><path d="M10.121 12.596A6.48 6.48 0 0 0 12.025 8a6.48 6.48 0 0 0-1.904-4.596l-.707.707A5.483 5.483 0 0 1 11.025 8a5.483 5.483 0 0 1-1.61 3.89l.706.706z"/><path d="M8.707 11.182A4.486 4.486 0 0 0 10.025 8a4.486 4.486 0 0 0-1.318-3.182L8 5.525A3.489 3.489 0 0 1 9.025 8 3.49 3.49 0 0 1 8 10.475l.707.707zM6.717 3.55A.5.5 0 0 1 7 4v8a.5.5 0 0 1-.812.39L3.825 10.5H1.5A.5.5 0 0 1 1 10V6a.5.5 0 0 1 .5-.5h2.325l2.363-1.89a.5.5 0 0 1 .529-.06z"/></svg>
+                        <svg id="speaker-icon-off" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 16 16"><path d="M6.717 3.55A.5.5 0 0 1 7 4v8a.5.5 0 0 1-.812.39L3.825 10.5H1.5A.5.5 0 0 1 1 10V6a.5.5 0 0 1 .5-.5h2.325l2.363-1.89a.5.5 0 0 1 .529-.06zm7.137 2.096a.5.5 0 0 1 0 .708L12.207 8l1.647 1.646a.5.5 0 0 1-.708.708L11.5 8.707l-1.646 1.647a.5.5 0 0 1-.708-.708L10.793 8 9.146 6.354a.5.5 0 1 1 .708-.708L11.5 7.293l1.646-1.647a.5.5 0 0 1 .708 0z"/></svg>
+                    </button>
+                    <select id="voice-select-dropdown" title="Select AI Voice" class="p-3 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent outline-none hidden">
+                    </select>
+                    <input type="text" id="message-input" class="flex-1 p-3 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent outline-none" placeholder="Type or say your message...">
+                    <button id="send-button" class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-5 rounded-lg shadow transition duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed">
+                        Send
+                    </button>
+                </div>
+                 <div id="loading-indicator" class="mt-2 text-sm text-slate-500 dark:text-slate-400 hidden">
+                    AI is thinking...
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="settings-modal" class="modal">
+        <div class="modal-content bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 p-6 rounded-lg shadow-xl">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-semibold text-slate-700 dark:text-slate-200">Settings</h2>
+                <span id="close-modal-button" class="close-button text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer">&times;</span>
+            </div>
+            
+            <div class="mb-4">
+                <label for="api-key-input" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Gemini API Key:</label>
+                <input type="password" id="api-key-input" class="w-full p-2 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-md focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent outline-none" placeholder="Enter your API Key">
+                <button id="save-api-key-button" class="mt-3 w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-4 rounded-md shadow transition duration-150 ease-in-out">
+                    Save Key
+                </button>
+                 <p id="api-key-status" class="text-xs mt-2 text-slate-500 dark:text-slate-400"></p>
+            </div>
+
+            </div>
+    </div>
+
+    <script>
+        // DOM Elements
+        const messageInput = document.getElementById('message-input');
+        const sendButton = document.getElementById('send-button');
+        const micButton = document.getElementById('mic-button');
+        const micIconIdle = document.getElementById('mic-icon-idle');
+        const micIconActive = document.getElementById('mic-icon-active');
+        const speakerToggleButton = document.getElementById('speaker-toggle-button');
+        const speakerIconOn = document.getElementById('speaker-icon-on');
+        const speakerIconOff = document.getElementById('speaker-icon-off');
+        const voiceSelectDropdown = document.getElementById('voice-select-dropdown');
+        const chatMessages = document.getElementById('chat-messages');
+        const loadingIndicator = document.getElementById('loading-indicator');
+        const errorMessageDiv = document.getElementById('error-message');
+        
+        const settingsButton = document.getElementById('settings-button');
+        const settingsModal = document.getElementById('settings-modal');
+        const closeModalButton = document.getElementById('close-modal-button');
+        const apiKeyInput = document.getElementById('api-key-input');
+        const saveApiKeyButton = document.getElementById('save-api-key-button');
+        const apiKeyStatus = document.getElementById('api-key-status');
+        const apiKeyPrompt = document.getElementById('api-key-prompt');
+        const openSettingsFromPromptButton = document.getElementById('open-settings-from-prompt');
+        // const themeSelect = document.getElementById('theme-select'); // Removed as theme selector is gone
+
+        // New DOM Elements for chat list
+        const newChatButton = document.getElementById('new-chat-button');
+        const chatListContainer = document.getElementById('chat-list');
+
+        // State Variables
+        // Stores all chat sessions: { chatId: { history: chatHistoryArray, name: 'Chat Name' } }
+        let chatSessions = {}; 
+        let currentChatId = null; // ID of the currently active chat
+        let chatHistory = []; // Reference to the chat history of the currentChatId
+        let geminiApiKey = localStorage.getItem('geminiApiKey') || '';
+        // let currentTheme = localStorage.getItem('theme') || 'light'; // Removed as theme is no longer user-selectable
+        let aiVoiceEnabled = localStorage.getItem('aiVoiceEnabled') === 'true';
+        let selectedVoiceURI = localStorage.getItem('selectedVoiceURI') || '';
+        let isRecording = false;
+        let availableVoices = [];
+
+        // Speech Recognition
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        let recognition;
+        if (SpeechRecognition) {
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.lang = 'en-US';
+            recognition.interimResults = false;
+            recognition.maxAlternatives = 1;
+
+            recognition.onresult = (event) => {
+                const speechResult = event.results[0][0].transcript;
+                messageInput.value = speechResult;
+                stopRecording();
+                // Automatically send message after speech recognition if not empty
+                if (messageInput.value.trim() !== '') {
+                    sendMessage();
+                }
+            };
+            recognition.onerror = (event) => {
+                console.error("Speech recognition error", event.error);
+                let errorMsg = `Mic error: ${event.error}`;
+                if (event.error === 'no-speech') errorMsg = "No speech detected. Please try again.";
+                if (event.error === 'not-allowed' || event.error === 'service-not-allowed') errorMsg = "Microphone access denied. Please enable it in your browser settings.";
+                displayErrorMessage(errorMsg);
+                stopRecording();
+            };
+            recognition.onend = () => { if (isRecording) stopRecording(); };
+        } else {
+            console.warn("Speech Recognition API not supported.");
+            if(micButton) micButton.style.display = 'none';
+        }
+
+        // Speech Synthesis
+        const synth = window.speechSynthesis;
+
+        function populateVoiceList() {
+            availableVoices = synth.getVoices();
+            voiceSelectDropdown.innerHTML = ''; // Clear existing options
+            
+            const defaultOption = document.createElement('option');
+            defaultOption.value = '';
+            defaultOption.textContent = 'Default Voice';
+            voiceSelectDropdown.appendChild(defaultOption);
+
+            availableVoices.forEach(voice => {
+                const option = document.createElement('option');
+                option.textContent = `${voice.name} (${voice.lang})`;
+                option.setAttribute('data-lang', voice.lang);
+                option.setAttribute('data-name', voice.name);
+                option.value = voice.voiceURI;
+                if (voice.voiceURI === selectedVoiceURI) {
+                    option.selected = true;
+                }
+                voiceSelectDropdown.appendChild(option);
+            });
+            voiceSelectDropdown.value = selectedVoiceURI; // re-apply selected URI
+        }
+        
+        if (synth) {
+            populateVoiceList();
+            if (speechSynthesis.onvoiceschanged !== undefined) {
+                speechSynthesis.onvoiceschanged = populateVoiceList;
+            }
+        } else {
+            console.warn("Speech Synthesis API not supported.");
+            if(speakerToggleButton) speakerToggleButton.style.display = 'none';
+            if(voiceSelectDropdown) voiceSelectDropdown.style.display = 'none';
+        }
+
+        /**
+         * Speaks the given text using the selected AI voice.
+         * @param {string} text - The text to speak.
+         */
+        function speakText(text) {
+            if (!aiVoiceEnabled || !synth || !text) return;
+            if (synth.speaking) {
+                synth.cancel(); // Stop any ongoing speech
+            }
+            const utterThis = new SpeechSynthesisUtterance(text);
+            utterThis.onerror = (event) => console.error('SpeechSynthesisUtterance.onerror', event);
+
+            if (selectedVoiceURI) {
+                const voice = availableVoices.find(v => v.voiceURI === selectedVoiceURI);
+                if (voice) utterThis.voice = voice;
+            }
+            synth.speak(utterThis);
+        }
+        
+        /**
+         * Updates the UI for the speaker toggle button and voice select dropdown.
+         */
+        function updateSpeakerButtonUI() {
+            if (aiVoiceEnabled) {
+                speakerIconOn.classList.remove('hidden');
+                speakerIconOff.classList.add('hidden');
+                voiceSelectDropdown.classList.remove('hidden');
+                speakerToggleButton.classList.add('speaker-active');
+            } else {
+                speakerIconOn.classList.add('hidden');
+                speakerIconOff.classList.remove('hidden');
+                voiceSelectDropdown.classList.add('hidden');
+                speakerToggleButton.classList.remove('speaker-active');
+            }
+        }
+
+
+        // --- Initialization ---
+        /**
+         * Initializes the application state and UI.
+         */
+        function initializeApp() {
+            // Theme is now handled by the initial script in <head> and system preference.
+            // No need to call applyTheme here or set themeSelect.value.
+
+            // AI Voice setup
+            updateSpeakerButtonUI();
+
+            // Load chat sessions and set up initial chat
+            loadChatSessionsFromStorage();
+            updateApiKeyStatus(); // Update API key status in settings modal
+
+            // Check API key and disable input if not set
+            if (!geminiApiKey) {
+                apiKeyPrompt.classList.remove('hidden');
+                sendButton.disabled = true;
+                if(micButton) micButton.disabled = true;
+                // Add a system message if no API key is set and no chat history exists
+                if (chatHistory.length === 0) {
+                    addMessageToChat("Welcome! Please set your Gemini API Key in the settings to start chatting.", 'system');
+                }
+            } else {
+                apiKeyPrompt.classList.add('hidden');
+                sendButton.disabled = false;
+                if(micButton) micButton.disabled = false;
+                // Only add welcome message if the current chat is truly empty
+                if (chatHistory.length === 0) {
+                    addMessageToChat("Welcome! How can I help you today?", 'system');
+                }
+            }
+            // Display history for the current chat
+            displayCurrentChatHistory();
+        }
+
+        // --- Theme Management ---
+        // applyTheme function removed as theme is no longer user-selectable.
+        // Initial theme setting is now handled by the script in the <head> based on system preference.
+
+
+        // --- Chat Functions ---
+        /**
+         * Adds a message bubble to the chat display.
+         * @param {string} message - The text content of the message.
+         * @param {string} sender - The sender of the message ('user', 'ai', or 'system').
+         * @param {boolean} [isLoading=false] - True if this is a temporary loading message.
+         */
+        function addMessageToChat(message, sender, isLoading = false) {
+            const messageElement = document.createElement('div');
+            messageElement.classList.add('chat-bubble');
+            
+            if (sender === 'user') {
+                // Apply Tailwind classes for user bubble
+                messageElement.classList.add('bg-blue-500', 'text-white', 'dark:bg-blue-700', 'dark:text-white');
+                messageElement.classList.add('user-bubble'); // Keep for specific border-radius
+            } else if (sender === 'ai') {
+                // Apply Tailwind classes for AI bubble
+                messageElement.classList.add('bg-gray-200', 'dark:bg-slate-700', 'text-slate-800', 'dark:text-slate-200');
+                messageElement.classList.add('ai-bubble'); // Keep for specific border-radius
+            } else { // system messages
+                messageElement.classList.add('system-bubble');
+            }
+            
+            messageElement.textContent = message;
+            chatMessages.appendChild(messageElement);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+
+            if (isLoading) messageElement.setAttribute('id', 'loading-bubble');
+        }
+
+        /**
+         * Updates the content of the last AI message (used for streaming or loading indicators).
+         * @param {string} newMessage - The new text content for the last AI message.
+         */
+        function updateLastAiMessage(newMessage) {
+            const loadingBubble = document.getElementById('loading-bubble');
+            if (loadingBubble) {
+                loadingBubble.textContent = newMessage;
+                loadingBubble.removeAttribute('id'); // Remove ID once loading is complete
+            } else {
+                // Fallback: if no loading bubble, just add a new AI message
+                addMessageToChat(newMessage, 'ai');
+            }
+        }
+        
+        /**
+         * Clears any displayed error messages.
+         */
+        function clearErrorMessage() {
+            errorMessageDiv.textContent = '';
+            errorMessageDiv.classList.add('hidden');
+        }
+
+        /**
+         * Displays an error message temporarily.
+         * @param {string} message - The error message to display.
+         */
+        function displayErrorMessage(message) {
+            errorMessageDiv.textContent = message;
+            errorMessageDiv.classList.remove('hidden');
+            setTimeout(clearErrorMessage, 6000); // Hide after 6 seconds
+        }
+
+        /**
+         * Sends the user's message to the Gemini API and handles the response.
+         */
+        async function sendMessage() {
+            const messageText = messageInput.value.trim();
+            if (!messageText) return;
+
+            if (!geminiApiKey) {
+                displayErrorMessage("API Key is not set. Please set it in settings.");
+                apiKeyPrompt.classList.remove('hidden');
+                return;
+            }
+            clearErrorMessage();
+
+            // Add user message to current chat history and display
+            addMessageToChat(messageText, 'user');
+            chatHistory.push({ role: "user", parts: [{ text: messageText }] });
+            saveChatSessionsToStorage(); // Save updated history
+
+            messageInput.value = '';
+            sendButton.disabled = true;
+            if(micButton) micButton.disabled = true;
+            if(speakerToggleButton) speakerToggleButton.disabled = true;
+            loadingIndicator.classList.add('hidden'); // Hide loading indicator before fetch
+            addMessageToChat("Thinking...", 'ai', true); // Add a temporary loading message
+
+            try {
+                // Use gemini-1.5-flash-latest model as specified in the original code
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${geminiApiKey}`;
+                const payload = { contents: chatHistory };
+
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    let detailedError = `API Error: ${response.status}`;
+                    if (errorData && errorData.error && errorData.error.message) detailedError += ` - ${errorData.error.message}`;
+                    throw new Error(detailedError);
+                }
+
+                const result = await response.json();
+                let aiResponseText = "Sorry, I couldn't get a response.";
+
+                if (result.candidates && result.candidates[0]?.content?.parts?.[0]?.text) {
+                    aiResponseText = result.candidates[0].content.parts[0].text;
+                    updateLastAiMessage(aiResponseText); // Update the loading message with actual response
+                    chatHistory.push({ role: "model", parts: [{ text: aiResponseText }] });
+                    saveChatSessionsToStorage(); // Save updated history
+                    speakText(aiResponseText);
+                } else if (result.promptFeedback?.blockReason) {
+                     aiResponseText = `Response blocked: ${result.promptFeedback.blockReason}.`;
+                     updateLastAiMessage(aiResponseText);
+                     chatHistory.push({ role: "model", parts: [{ text: aiResponseText }] });
+                     speakText(aiResponseText);
+                } else {
+                    updateLastAiMessage(aiResponseText); // Shows "Sorry, I couldn't get a response."
+                }
+
+            } catch (error) {
+                const errorMessageText = `Error: ${error.message || "Could not connect to AI."}`;
+                updateLastAiMessage(errorMessageText); // Display error in chat bubble
+                displayErrorMessage(errorMessageText); // Display error in dedicated error div
+            } finally {
+                sendButton.disabled = false;
+                if(micButton) micButton.disabled = geminiApiKey ? false : true;
+                if(speakerToggleButton) speakerToggleButton.disabled = false;
+                loadingIndicator.classList.add('hidden');
+                messageInput.focus();
+                renderChatList(); // Re-render chat list to update names if first message was sent
+            }
+        }
+
+        // --- Speech Recognition Control ---
+        /**
+         * Starts the speech recognition process.
+         */
+        function startRecording() {
+            if (!recognition || !micButton) return;
+            if (isRecording) return;
+
+            try {
+                isRecording = true;
+                recognition.start();
+                micIconIdle.classList.add('hidden');
+                micIconActive.classList.remove('hidden');
+                micButton.classList.add('mic-active');
+                sendButton.disabled = true;
+                messageInput.placeholder = "Listening...";
+            } catch (e) {
+                isRecording = false;
+                if (e.name === 'InvalidStateError') displayErrorMessage("Mic busy or already started.");
+                else displayErrorMessage("Could not start microphone.");
+                micIconIdle.classList.remove('hidden');
+                micIconActive.classList.add('hidden');
+                micButton.classList.remove('mic-active');
+                sendButton.disabled = geminiApiKey ? false : true;
+                messageInput.placeholder = "Type or say your message...";
+            }
+        }
+
+        /**
+         * Stops the speech recognition process.
+         */
+        function stopRecording() {
+            if (!recognition || !micButton) return;
+            if (!isRecording) return;
+
+            recognition.stop();
+            isRecording = false;
+            micIconIdle.classList.remove('hidden');
+            micIconActive.classList.add('hidden');
+            micButton.classList.remove('mic-active');
+            sendButton.disabled = geminiApiKey ? false : true;
+            messageInput.placeholder = "Type or say your message...";
+        }
+        
+        if(micButton) {
+            micButton.addEventListener('click', () => {
+                if (isRecording) stopRecording();
+                else startRecording();
+            });
+        }
+
+
+        // --- Settings Modal Functions ---
+        /**
+         * Opens the settings modal.
+         */
+        function openSettingsModal() {
+            apiKeyInput.value = geminiApiKey;
+            // themeSelect.value = currentTheme; // Removed as theme selector is gone
+            settingsModal.style.display = 'flex';
+        }
+
+        /**
+         * Closes the settings modal.
+         */
+        function closeSettingsModal() {
+            settingsModal.style.display = 'none';
+        }
+
+        /**
+         * Saves the entered API key to local storage.
+         */
+        function saveApiKey() {
+            const newApiKey = apiKeyInput.value.trim();
+            if (newApiKey) {
+                geminiApiKey = newApiKey;
+                localStorage.setItem('geminiApiKey', geminiApiKey);
+                updateApiKeyStatus();
+                apiKeyPrompt.classList.add('hidden');
+                sendButton.disabled = false;
+                if(micButton) micButton.disabled = false;
+                clearErrorMessage();
+                addMessageToChat("API Key saved. You can now chat.", 'system');
+                closeSettingsModal();
+            } else {
+                apiKeyStatus.textContent = 'API Key cannot be empty.';
+                apiKeyStatus.classList.remove('text-slate-500', 'dark:text-slate-400', 'text-green-600', 'dark:text-green-500');
+                apiKeyStatus.classList.add('text-red-500', 'dark:text-red-400');
+            }
+        }
+        
+        /**
+         * Updates the API key status message in the settings modal.
+         */
+        function updateApiKeyStatus() {
+            if (geminiApiKey) {
+                apiKeyStatus.textContent = 'API Key is set.';
+                apiKeyStatus.classList.remove('text-red-500', 'dark:text-red-400');
+                apiKeyStatus.classList.add('text-green-600', 'dark:text-green-500');
+            } else {
+                apiKeyStatus.textContent = 'API Key is not set.';
+                apiKeyStatus.classList.remove('text-green-600', 'dark:text-green-500');
+                apiKeyStatus.classList.add('text-red-500', 'dark:text-red-400');
+            }
+        }
+
+        // --- Chat Session Management ---
+
+        /**
+         * Generates a unique ID for a new chat session.
+         * @returns {string} A unique ID.
+         */
+        function generateUniqueId() {
+            return Date.now().toString(36) + Math.random().toString(36).substring(2);
+        }
+
+        /**
+         * Saves all chat sessions to local storage.
+         */
+        function saveChatSessionsToStorage() {
+            try {
+                localStorage.setItem('geminiChatSessions', JSON.stringify(chatSessions));
+                localStorage.setItem('currentChatId', currentChatId); // Save current chat ID
+            } catch (e) {
+                console.warn("Could not save chat sessions:", e);
+            }
+        }
+
+        /**
+         * Loads all chat sessions from local storage.
+         */
+        function loadChatSessionsFromStorage() {
+            const storedSessions = localStorage.getItem('geminiChatSessions');
+            if (storedSessions) {
+                try {
+                    const parsedSessions = JSON.parse(storedSessions);
+                    // Ensure loaded data matches the new structure, adapt if old structure is found
+                    if (typeof parsedSessions === 'object' && parsedSessions !== null) {
+                        for (const id in parsedSessions) {
+                            // If an old entry (just an array) is found, convert it
+                            if (Array.isArray(parsedSessions[id])) {
+                                chatSessions[id] = { history: parsedSessions[id], name: `Chat ${Object.keys(chatSessions).length + 1}` };
+                            } else {
+                                chatSessions[id] = parsedSessions[id];
+                                // Ensure name exists for existing chats
+                                if (!chatSessions[id].name) {
+                                    chatSessions[id].name = `Chat ${Object.keys(chatSessions).length + 1}`;
+                                }
+                            }
+                        }
+                    } else {
+                        localStorage.removeItem('geminiChatSessions');
+                        chatSessions = {};
+                    }
+                } catch (e) {
+                    localStorage.removeItem('geminiChatSessions');
+                    chatSessions = {};
+                }
+            }
+
+            // If no sessions exist or parsing failed, create a default one
+            if (Object.keys(chatSessions).length === 0) {
+                startNewChat(false); // Start a new chat without saving initially if it's the first one
+            } else {
+                // Set currentChatId to the last active one or the first available chat
+                currentChatId = localStorage.getItem('currentChatId') || Object.keys(chatSessions)[0];
+                // Fallback if the stored currentChatId no longer exists
+                if (!chatSessions[currentChatId]) {
+                    currentChatId = Object.keys(chatSessions)[0];
+                }
+                chatHistory = chatSessions[currentChatId].history || []; // Access history property
+            }
+            renderChatList();
+        }
+
+        /**
+         * Displays the messages of the current chat history in the chat messages area.
+         */
+        function displayCurrentChatHistory() {
+            chatMessages.innerHTML = ''; // Clear existing messages
+            chatHistory.forEach(item => {
+                if (item.role === 'user' || item.role === 'model') {
+                    addMessageToChat(item.parts[0].text, item.role === 'user' ? 'user' : 'ai');
+                }
+            });
+            chatMessages.scrollTop = chatMessages.scrollHeight; // Scroll to bottom
+        }
+
+
+        /**
+         * Renders (or re-renders) the list of chat sessions in the sidebar.
+         */
+        function renderChatList() {
+            chatListContainer.innerHTML = ''; // Clear existing list items
+            const chatIds = Object.keys(chatSessions).sort((a, b) => {
+                // Sort by creation time (assuming IDs are timestamp-based)
+                return parseInt(a.substring(0, a.indexOf('.')), 36) - parseInt(b.substring(0, b.indexOf('.')), 36);
+            });
+
+            if (chatIds.length === 0) {
+                // If no chats, ensure a new one is created
+                startNewChat(false);
+                return;
+            }
+
+            chatIds.forEach((chatId, index) => {
+                const chatItem = document.createElement('div');
+                chatItem.classList.add(
+                    'chat-list-item',
+                    'flex', 'items-center', 'justify-between', 'p-3', 'rounded-lg', 'cursor-pointer',
+                    'hover:bg-slate-200', 'dark:hover:bg-slate-700', 'transition-colors', 'duration-150',
+                    'text-slate-700', 'dark:text-slate-200'
+                );
+                if (chatId === currentChatId) {
+                    chatItem.classList.add('active');
+                }
+                chatItem.dataset.chatId = chatId;
+
+                // Determine chat name: stored name, first user message, first AI response, or generic
+                let chatName = chatSessions[chatId].name;
+                const history = chatSessions[chatId].history;
+
+                if (!chatName || chatName.startsWith('Chat ')) { // If no custom name or generic name
+                    if (history && history.length > 0) {
+                        const firstUserMessage = history.find(msg => msg.role === 'user');
+                        const firstAiResponse = history.find(msg => msg.role === 'model');
+                        if (firstUserMessage) {
+                            chatName = firstUserMessage.parts[0].text.substring(0, 30) + (firstUserMessage.parts[0].text.length > 30 ? '...' : '');
+                        } else if (firstAiResponse) {
+                            chatName = firstAiResponse.parts[0].text.substring(0, 30) + (firstAiResponse.parts[0].text.length > 30 ? '...' : '');
+                        } else {
+                            chatName = `Chat ${index + 1}`;
+                        }
+                    } else {
+                        chatName = `Chat ${index + 1}`;
+                    }
+                    chatSessions[chatId].name = chatName; // Update name in session data
+                }
+                
+                const chatNameSpan = document.createElement('span');
+                chatNameSpan.textContent = chatName;
+                chatNameSpan.classList.add('flex-1', 'truncate'); // Ensure text truncates if too long
+
+                // Add double-click listener for renaming
+                chatNameSpan.addEventListener('dblclick', (event) => {
+                    event.stopPropagation(); // Prevent chat switch on dblclick
+                    const currentName = chatNameSpan.textContent;
+                    const nameInput = document.createElement('input');
+                    nameInput.type = 'text';
+                    nameInput.value = currentName;
+                    nameInput.classList.add(
+                        'flex-1', 'bg-transparent', 'border', 'border-slate-300', 'dark:border-slate-600',
+                        'rounded-md', 'px-1', 'py-0.5', 'text-slate-800', 'dark:text-slate-200',
+                        'focus:outline-none', 'focus:ring-1', 'focus:ring-blue-500'
+                    );
+                    nameInput.style.minWidth = '50px'; // Ensure it's wide enough
+
+                    chatItem.replaceChild(nameInput, chatNameSpan);
+                    nameInput.focus();
+                    nameInput.select(); // Select all text for easy renaming
+
+                    const saveNewName = () => {
+                        const newName = nameInput.value.trim();
+                        if (newName && newName !== currentName) {
+                            chatSessions[chatId].name = newName;
+                            saveChatSessionsToStorage();
+                            renderChatList(); // Re-render to update the name in the list
+                        } else {
+                            // If empty or same, revert to original span
+                            chatItem.replaceChild(chatNameSpan, nameInput);
+                        }
+                    };
+
+                    nameInput.addEventListener('blur', saveNewName);
+                    nameInput.addEventListener('keypress', (e) => {
+                        if (e.key === 'Enter') {
+                            nameInput.blur(); // Trigger blur to save
+                        }
+                    });
+                });
+
+
+                const deleteButton = document.createElement('button');
+                // Simple 'X' icon for delete
+                deleteButton.innerHTML = `
+                    <span class="text-xl leading-none text-slate-400 hover:text-red-500 dark:hover:text-red-400">&times;</span>
+                `;
+                // Added w-8 h-8 to ensure circular shape for the button itself
+                deleteButton.classList.add('w-8', 'h-8', 'p-1', 'rounded-full', 'hover:bg-slate-300', 'dark:hover:bg-slate-600', 'focus:outline-none', 'focus:ring-2', 'focus:ring-red-500', 'flex', 'items-center', 'justify-center');
+                deleteButton.title = "Delete Chat";
+                deleteButton.addEventListener('click', (event) => {
+                    event.stopPropagation(); // Prevent switching chat when deleting
+                    deleteChat(chatId);
+                });
+
+                chatItem.appendChild(chatNameSpan);
+                chatItem.appendChild(deleteButton);
+                chatItem.addEventListener('click', () => switchChat(chatId));
+                chatListContainer.appendChild(chatItem);
+            });
+        }
+
+        /**
+         * Starts a new chat session.
+         * @param {boolean} [savePrevious=true] - Whether to save the current chat before starting a new one.
+         */
+        function startNewChat(savePrevious = true) {
+            if (savePrevious && currentChatId && chatSessions[currentChatId]) {
+                // Ensure the current chat's history is saved before switching
+                chatSessions[currentChatId].history = chatHistory; // Save history
+            }
+
+            const newId = generateUniqueId();
+            const newChatName = `Chat ${Object.keys(chatSessions).length + 1}`;
+            chatSessions[newId] = { history: [], name: newChatName }; // Initialize with empty history and default name
+            currentChatId = newId;
+            chatHistory = chatSessions[currentChatId].history; // Update reference to new chat's history
+
+            saveChatSessionsToStorage();
+            displayCurrentChatHistory(); // Clear and display empty chat
+            addMessageToChat("Welcome! How can I help you today?", 'system');
+            messageInput.value = ''; // Clear input field
+            messageInput.focus();
+            renderChatList(); // Re-render list to show new chat and highlight it
+        }
+
+        /**
+         * Switches the current chat session to the specified chatId.
+         * @param {string} chatId - The ID of the chat session to switch to.
+         */
+        function switchChat(chatId) {
+            if (chatId === currentChatId) return; // Already on this chat
+
+            // Save the current chat's history before switching
+            if (currentChatId && chatSessions[currentChatId]) {
+                chatSessions[currentChatId].history = chatHistory; // Save history
+            }
+
+            currentChatId = chatId;
+            chatHistory = chatSessions[currentChatId].history; // Update reference to new chat's history
+            saveChatSessionsToStorage(); // Save updated currentChatId
+
+            displayCurrentChatHistory(); // Display messages of the new chat
+            renderChatList(); // Update active state in the list
+            messageInput.focus();
+        }
+
+        /**
+         * Deletes a chat session by its ID.
+         * @param {string} chatIdToDelete - The ID of the chat session to delete.
+         */
+        function deleteChat(chatIdToDelete) {
+            // Using a custom modal or confirmation UI is recommended for production.
+            // For now, using browser's confirm for simplicity as per previous instructions.
+            if (!confirm('Are you sure you want to delete this chat?')) {
+                return;
+            }
+
+            delete chatSessions[chatIdToDelete];
+            saveChatSessionsToStorage();
+
+            if (chatIdToDelete === currentChatId) {
+                // If the deleted chat was the current one, switch to another or create new
+                const remainingChatIds = Object.keys(chatSessions);
+                if (remainingChatIds.length > 0) {
+                    switchChat(remainingChatIds[0]); // Switch to the first remaining chat
+                } else {
+                    startNewChat(false); // No chats left, start a brand new one
+                }
+            }
+            renderChatList(); // Re-render the list after deletion
+        }
+
+        // --- Event Listeners ---
+        sendButton.addEventListener('click', sendMessage);
+        messageInput.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter' && !isRecording) sendMessage();
+        });
+
+        settingsButton.addEventListener('click', openSettingsModal);
+        closeModalButton.addEventListener('click', closeSettingsModal);
+        saveApiKeyButton.addEventListener('click', saveApiKey);
+        openSettingsFromPromptButton.addEventListener('click', openSettingsModal);
+
+        // themeSelect.addEventListener('change', (event) => applyTheme(event.target.value)); // Removed theme selector event listener
+        
+        if(speakerToggleButton) {
+            speakerToggleButton.addEventListener('click', () => {
+                aiVoiceEnabled = !aiVoiceEnabled;
+                localStorage.setItem('aiVoiceEnabled', aiVoiceEnabled);
+                updateSpeakerButtonUI();
+                if (!aiVoiceEnabled && synth.speaking) synth.cancel();
+            });
+        }
+
+        if(voiceSelectDropdown) {
+            voiceSelectDropdown.addEventListener('change', (event) => {
+                selectedVoiceURI = event.target.value;
+                localStorage.setItem('selectedVoiceURI', selectedVoiceURI);
+            });
+        }
+
+        window.addEventListener('click', (event) => {
+            if (event.target === settingsModal) closeSettingsModal();
+        });
+
+        newChatButton.addEventListener('click', () => startNewChat());
+        
+        document.addEventListener('DOMContentLoaded', initializeApp);
+    </script>
+</body>
+</html>
