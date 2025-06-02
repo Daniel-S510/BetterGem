@@ -1,0 +1,3207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BetterGem AI Chat</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Marked.js CDN for Markdown parsing -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            overscroll-behavior: none;
+        }
+        /* Custom scrollbar styles */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background-color: #94a3b8; /* slate-400 */
+            border-radius: 4px;
+        }
+        html.dark ::-webkit-scrollbar-thumb {
+            background-color: #475569; /* slate-600 */
+        }
+        ::-webkit-scrollbar-track {
+            background-color: #f1f5f9; /* slate-100 */
+        }
+        html.dark ::-webkit-scrollbar-track {
+            background-color: #1e293b; /* slate-800 */
+        }
+
+        /* Chat bubble styles - Changed word-wrap for better breaking */
+        .chat-bubble {
+            max-width: 75%;
+            padding: 10px 15px;
+            border-radius: 20px;
+            margin-bottom: 10px;
+            overflow-wrap: break-word; /* Modern equivalent of word-wrap */
+            transition: background-color 0.3s, color 0.3s;
+            position: relative; /* Needed for absolute positioning of delete button */
+        }
+        .user-bubble {
+            margin-left: auto;
+            border-bottom-right-radius: 5px;
+        }
+        .ai-bubble {
+            margin-right: auto;
+            border-bottom-left-radius: 5px;
+        }
+        /* System message bubble style */
+        .system-bubble {
+            text-align: center;
+            font-size: 0.875rem; /* text-sm */
+            color: #64748b; /* slate-500 */
+            width: 100%;
+            max-width: 100%;
+            background-color: transparent;
+            box-shadow: none;
+            margin-left: 0;
+            margin-right: 0;
+            padding: 5px 0;
+        }
+
+        /* Message delete button */
+        .delete-message-button {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            background-color: rgba(255, 0, 0, 0.7);
+            color: white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem; /* text-xs */
+            cursor: pointer;
+            opacity: 0; /* Hidden by default */
+            transition: opacity 0.2s ease-in-out;
+        }
+        .chat-bubble:hover .delete-message-button {
+            opacity: 1; /* Show on hover */
+        }
+        .delete-message-button:hover {
+            background-color: rgba(255, 0, 0, 1);
+        }
+
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.5);
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-content {
+            margin: auto;
+            padding: 20px;
+            border: 1px solid #888; /* Fallback border */
+            width: 90%;
+            max-width: 500px;
+            border-radius: 8px;
+            transition: background-color 0.3s, color 0.3s, border-color 0.3s;
+        }
+        .close-button {
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            transition: color 0.3s;
+        }
+        .close-button:hover,
+        .close-button:focus {
+            text-decoration: none;
+            cursor: pointer;
+        }
+        /* Active states for buttons */
+        .mic-active svg, .speaker-active svg, .screen-sharing-active svg, .image-gen-active svg {
+            color: #ef4444; /* red-500 */
+        }
+        html.dark .mic-active svg, html.dark .speaker-active svg, html.dark .screen-sharing-active svg, html.dark .image-gen-active svg {
+             color: #f87171; /* red-400 */
+        }
+
+        /* Voice select dropdown width */
+        #voice-select-dropdown {
+            max-width: 150px; /* Limit width of voice selector */
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* Chat list item active state */
+        .chat-list-item.active {
+            background-color: #e2e8f0; /* slate-200 */
+            font-weight: 600; /* font-semibold */
+        }
+        html.dark .chat-list-item.active {
+            background-color: #334155; /* slate-700 */
+        }
+
+        /* Ensure main content takes remaining height */
+        .flex-container {
+            display: flex;
+            flex: 1; /* Allows it to grow and fill available space */
+            overflow: hidden; /* Prevents overflow issues with flex items */
+        }
+
+        /* Show thinking button within AI bubble */
+        .show-thinking-button {
+            background-color: #cbd5e1; /* slate-300 */
+            color: #475569; /* slate-700 */
+            padding: 4px 8px;
+            border-radius: 10px;
+            font-size: 0.75rem; /* text-xs */
+            cursor: pointer;
+            margin-top: 8px;
+            display: inline-block;
+            transition: background-color 0.2s;
+        }
+        .ai-bubble.dark .show-thinking-button {
+            background-color: #475569; /* slate-600 */
+            color: #e2e8f0; /* slate-200 */
+        }
+        .show-thinking-button:hover {
+            background-color: #94a3b8; /* slate-400 */
+        }
+        .ai-bubble.dark .show-thinking-button:hover {
+            background-color: #64748b; /* slate-500 */
+        }
+        .thinking-details {
+            margin-top: 8px;
+            padding: 8px;
+            background-color: #e2e8f0; /* slate-200 */
+            border-radius: 8px;
+            font-size: 0.875rem; /* text-sm */
+            color: #475569; /* slate-700 */
+            white-space: pre-wrap; /* Preserve whitespace and line breaks */
+            display: none; /* Hidden by default */
+        }
+        .ai-bubble.dark .thinking-details {
+            background-color: #334155; /* slate-700 */
+            color: #e2e8f0; /* slate-200 */
+        }
+
+        /* Action buttons within chat bubble */
+        .message-actions {
+            display: flex;
+            gap: 8px; /* Space between buttons */
+            margin-top: 8px;
+            justify-content: flex-end; /* Align to the right for user, left for AI */
+        }
+        .ai-bubble .message-actions {
+            justify-content: flex-start;
+        }
+        .message-action-button {
+            padding: 4px 8px;
+            border-radius: 10px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .message-action-button.edit-button {
+            background-color: #cbd5e1; /* slate-300 */
+            color: #475569; /* slate-700 */
+        }
+        .message-action-button.edit-button:hover {
+            background-color: #94a3b8; /* slate-400 */
+        }
+        .dark .message-action-button.edit-button {
+            background-color: #475569; /* slate-600 */
+            color: #e2e8f0; /* slate-200 */
+        }
+        .dark .message-action-button.edit-button:hover {
+            background-color: #64748b; /* slate-500 */
+        }
+
+        .message-action-button.regenerate-button {
+            background-color: #a78bfa; /* violet-400 */
+            color: white;
+        }
+        .message-action-button.regenerate-button:hover {
+            background-color: #8b5cf6; /* violet-500 */
+        }
+        .dark .message-action-button.regenerate-button {
+            background-color: #8b5cf6; /* violet-500 */
+        }
+        .dark .message-action-button.regenerate-button:hover {
+            background-color: #7c3aed; /* violet-600 */
+        }
+
+        .message-action-button.save-button {
+            background-color: #22c55e; /* green-500 */
+            color: white;
+        }
+        .message-action-button.save-button:hover {
+            background-color: #16a34a; /* green-600 */
+        }
+        .message-action-button.cancel-button {
+            background-color: #ef4444; /* red-500 */
+            color: white;
+        }
+        .message-action-button.cancel-button:hover {
+            background-color: #dc2626; /* red-600 */
+        }
+
+        /* Message Input Textarea */
+        #message-input {
+            min-height: 48px; /* Same as input field height */
+            max-height: 200px; /* Limit expansion */
+            overflow-y: auto; /* Enable scrolling when max-height reached */
+            padding-top: 12px; /* Adjust padding for multi-line */
+            padding-bottom: 12px; /* Adjust padding for multi-line */
+            line-height: 1.5; /* Ensure consistent line height */
+            resize: vertical;
+        }
+
+        .edit-textarea {
+            width: 100%;
+            min-height: 60px;
+            padding: 8px;
+            border-radius: 8px;
+            border: 1px solid #cbd5e1; /* slate-300 */
+            background-color: #f8fafc; /* slate-50 */
+            color: #1e293b; /* slate-900 */
+            margin-top: 8px;
+            resize: vertical;
+        }
+        .dark .edit-textarea {
+            border-color: #475569; /* slate-600 */
+            background-color: #1e293b; /* slate-800 */
+            color: #e2e8f0; /* slate-200 */
+        }
+
+        /* Define CSS variables for themes (used by code block fade) */
+        :root {
+            /* These are for the general page theme, not necessarily the code blocks themselves */
+            --bg-code-block-fade-light: #f8fafc; /* slate-50 */
+            --text-code-block-text-light: #1e293b; /* slate-900 */
+        }
+        html.dark {
+            --bg-code-block-fade-dark: #0f172a; /* slate-900 */
+            --text-code-block-text-dark: #e2e8f0; /* slate-200 */
+        }
+
+        /* Code block styling (refined for marked.js output) */
+        .ai-bubble pre { /* Target pre generated by marked.js */
+            background-color: #0f172a; /* Force dark background for code */
+            color: #e2e8f0; /* Force light text for code */
+            border-radius: 5px; /* Smaller radius for the code content itself */
+            padding: 10px;
+            margin: 0; /* Remove default margin from pre */
+            white-space: pre-wrap; /* Preserve whitespace and wrap lines */
+            overflow-x: auto; /* Enable horizontal scrolling for long lines */
+            position: relative; /* Needed for ellipsis and fade pseudo-elements */
+        }
+        .ai-bubble pre code {
+            font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace; /* Monospace font for code */
+            font-size: 0.875rem; /* text-sm */
+        }
+
+        /* New styling for the collapsed view */
+        .ai-bubble pre.collapsed-view {
+            max-height: 7.5em; /* Approximately 5 lines (1.5em line-height * 5 lines) */
+            overflow: hidden;
+            padding-bottom: 2em; /* Make space for the fade/ellipsis */
+        }
+
+        /* Visual fade effect when collapsed */
+        .ai-bubble pre.collapsed-view::after {
+            content: "";
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 2em; /* Height of the fade effect */
+            /* Use hardcoded values or CSS variables defined for the specific code block background */
+            background: linear-gradient(to top, #0f172a, rgba(15, 23, 42, 0)); /* Fade from code background color */
+            pointer-events: none; /* Allow clicking through */
+        }
+
+        /* Textual ellipsis for collapse */
+        .ai-bubble pre.collapsed-view::before {
+            content: "...";
+            position: absolute;
+            bottom: 0.5em; /* Adjust to sit below the fade */
+            right: 10px;
+            font-weight: bold;
+            color: #e2e8f0; /* Same as code text color */
+            background-color: #0f172a; /* Match code block background */
+            padding: 0 5px;
+            z-index: 1; /* Ensure it's above the fade */
+        }
+
+
+        /* Wrapper for custom header and collapsible content */
+        .code-block-wrapper { /* New wrapper to hold both header and content */
+            margin-top: 10px; /* Space from previous content */
+            background-color: #1e293b; /* slate-800, for the entire block container */
+            border-radius: 8px;
+            padding: 12px;
+        }
+
+        .code-block-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            font-size: 0.875rem; /* text-sm */
+            color: #94a3b8; /* slate-400; */
+        }
+        .code-block-language {
+            font-weight: 600; /* font-semibold */
+        }
+        .copy-code-button, .toggle-code-button {
+            background-color: #475569; /* slate-600 */
+            color: #e2e8f0; /* slate-200 */
+            padding: 4px 10px;
+            border-radius: 5px;
+            font-size: 0.75rem; /* text-xs */
+            cursor: pointer;
+            transition: background-color 0.2s;
+            margin-left: 8px; /* Space between buttons */
+        }
+        .copy-code-button:hover, .toggle-code-button:hover {
+            background-color: #64748b; /* slate-500 */
+        }
+
+        /* Styling for non-image file previews */
+        .file-preview-item {
+            display: flex;
+            align-items: center;
+            padding: 8px;
+            border: 1px solid #cbd5e1; /* slate-300 */
+            border-radius: 8px;
+            background-color: #f1f5f9; /* slate-100 */
+            margin-top: 8px;
+            font-size: 0.875rem;
+            color: #1e293b;
+        }
+        html.dark .file-preview-item {
+            border-color: #475569; /* slate-600 */
+            background-color: #334155; /* slate-700 */
+            color: #e2e8f0;
+        }
+        .file-icon {
+            margin-right: 8px;
+            color: #64748b; /* slate-500 */
+        }
+        .file-name {
+            font-weight: 500;
+        }
+        .file-type {
+            font-size: 0.75rem;
+            color: #94a3b8; /* slate-400 */
+            margin-left: 4px;
+        }
+
+        /* Thinking dots animation */
+        @keyframes blink {
+            0%, 100% { opacity: 0.2; }
+            33% { opacity: 1; }
+            66% { opacity: 0.2; }
+        }
+
+        .loading-dots span {
+            animation: blink 1.4s infinite;
+            animation-fill-mode: both;
+        }
+
+        .loading-dots span:nth-child(2) {
+            animation-delay: .2s;
+        }
+
+        .loading-dots span:nth-child(3) {
+            animation-delay: .4s;
+        }
+
+        /* Formatting toolbar styles */
+        .formatting-toolbar {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 8px;
+            padding: 8px;
+            background-color: #e2e8f0; /* slate-200 */
+            border-radius: 8px;
+            border: 1px solid #cbd5e1; /* slate-300 */
+        }
+        html.dark .formatting-toolbar {
+            background-color: #334155; /* slate-700 */
+            border-color: #475569; /* slate-600 */
+        }
+        .formatting-button {
+            padding: 6px 10px;
+            border-radius: 6px;
+            background-color: #cbd5e1; /* slate-300 */
+            color: #475569; /* slate-700 */
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.2s, color 0.2s;
+        }
+        .formatting-button:hover {
+            background-color: #94a3b8; /* slate-400 */
+            color: #1e293b; /* slate-900 */
+        }
+        html.dark .formatting-button {
+            background-color: #475569; /* slate-600 */
+            color: #e2e8f0; /* slate-200 */
+        }
+        html.dark .formatting-button:hover {
+            background-color: #64748b; /* slate-500 */
+            color: #f8fafc; /* slate-50 */
+        }
+
+        /* Collapsed Sidebar Styles */
+        aside.collapsed {
+            width: 80px; /* Narrower width */
+            padding-left: 8px; /* Smaller padding */
+            padding-right: 8px; /* Smaller padding */
+            overflow: hidden; /* Hide overflowing content */
+            transition: width 0.3s ease-in-out, padding 0.3s ease-in-out;
+        }
+
+        aside:not(.collapsed) {
+            width: 256px; /* sm:w-64 */
+            transition: width 0.3s ease-in-out, padding 0.3s ease-in-out;
+        }
+
+        /* New Chat Button: square with + icon */
+        #new-chat-button {
+            width: 48px; /* Fixed width for square */
+            height: 48px; /* Fixed height for square */
+            padding: 0; /* Remove padding */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #new-chat-button .new-chat-text {
+            display: none; /* Hide text by default for the square button */
+        }
+        #new-chat-button span:first-child { /* The '+' icon */
+            font-size: 1.5rem; /* Larger '+' icon */
+        }
+
+        /* When sidebar is NOT collapsed, show "New Chat" text */
+        aside:not(.collapsed) #new-chat-button {
+            width: 100%; /* Take full width */
+            height: auto; /* Allow height to adjust */
+            padding: 8px 16px; /* py-2 px-4 */
+        }
+        aside:not(.collapsed) #new-chat-button .new-chat-text {
+            display: inline; /* Show the text */
+        }
+        aside:not(.collapsed) #new-chat-button span:first-child {
+            font-size: 1.25rem; /* Smaller '+' icon when text is present */
+            margin-right: 8px; /* Add margin to '+' icon */
+        }
+
+
+        .chat-list-item.collapsed .chat-name-span,
+        .chat-list-item.collapsed .chat-buttons-container {
+            display: none; /* Hide name and buttons */
+        }
+        .chat-list-item.collapsed {
+            justify-content: center; /* Center profile picture */
+            padding: 8px 0; /* Adjust padding */
+        }
+        .chat-list-item.collapsed .chat-profile-pic {
+            margin-right: 0; /* Remove margin */
+        }
+        .chat-list-item:not(.collapsed) .chat-name-span,
+        .chat-list-item:not(.collapsed) .chat-buttons-container {
+            display: flex; /* Ensure they are visible when not collapsed */
+        }
+
+        /* Collapse button placement */
+        .chat-header-title {
+            flex-grow: 1; /* Allow it to take available space */
+            flex-shrink: 1; /* Allow it to shrink if necessary */
+            min-width: 0; /* Important for flex items to truncate */
+            overflow: hidden; /* Hide overflow */
+            white-space: nowrap; /* Prevent wrapping */
+            text-overflow: ellipsis; /* Add ellipsis */
+        }
+        #collapse-chats-button {
+            flex-shrink: 0; /* Prevent button from shrinking */
+            width: 32px; /* Fixed width */
+            height: 32px; /* Fixed height */
+            display: flex; /* Ensure flex for centering icon */
+            align-items: center;
+            justify-content: center;
+            margin-left: 8px; /* Ensure space between title and button */
+        }
+        #collapse-chats-button span {
+            line-height: 1; /* Prevent extra space around icon */
+        }
+    </style>
+    <script>
+        // Apply theme ASAP to avoid FOUC (Flash Of Unstyled Content)
+        const initialTheme = localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        if (initialTheme === 'dark') {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+        localStorage.removeItem('theme'); // Remove theme preference from local storage if it exists
+    </script>
+</head>
+<body class="bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200 flex flex-col h-screen transition-colors duration-300">
+
+    <header class="bg-slate-800 dark:bg-slate-950 text-white p-4 shadow-md">
+        <div class="container mx-auto flex justify-between items-center">
+            <div class="flex items-baseline space-x-2">
+                <h1 class="text-xl font-semibold">BetterGem AI Chat</h1>
+                <span class="text-sm text-slate-400 dark:text-slate-500" id="current-model-display"></span>
+            </div>
+            <button id="settings-button" class="p-2 rounded-md hover:bg-slate-700 dark:hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500 dark:focus:ring-slate-400" aria-label="Settings">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 0 1 1.45.12l.773.774c.39.39.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.108 1.204.165.397.505.71.93.78l.893.15c.543.09.94.56.94 1.11v1.093c0 .55-.397 1.02-.94 1.11l-.893.149c-.425.07-.765.383-.93.78-.165.398-.143.854.107 1.204l.527.738c.32.447.27.96-.12 1.45l-.774.773a1.125 1.125 0 0 1-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.397.165-.71.505-.78.93l-.15.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.149-.894c-.07-.424-.384-.764-.78-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-.96.27-1.45-.12l-.773-.774a1.125 1.125 0 0 1-.12-1.45l.527-.737c.25-.35.272-.806.108-1.204-.165-.397-.505-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.11v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165.398.143.854-.108-1.204l-.526-.738a1.125 1.125 0 0 1 .12-1.45l.773-.773a1.125 1.125 0 0 1 1.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.93l.15-.893Z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                </svg>
+            </button>
+        </div>
+    </header>
+
+    <div class="flex-container flex-1 w-full max-w-7xl mx-auto py-4 px-2 sm:px-4">
+        <aside id="chat-sidebar" class="w-full sm:w-64 bg-white dark:bg-slate-800 shadow rounded-lg p-4 mr-4 flex flex-col flex-shrink-0">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-semibold text-slate-700 dark:text-slate-200 chat-header-title">Chats</h2>
+                <button id="collapse-chats-button" class="p-1 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300" aria-label="Collapse Chats">
+                    <span id="collapse-icon-expanded" class="text-xl">&lt;&lt;</span>
+                    <span id="collapse-icon-collapsed" class="text-xl hidden">&gt;&gt;</span>
+                </button>
+            </div>
+            
+            <button id="new-chat-button" class="bg-blue-500 hover:bg-blue-600 text-white font-semibold rounded-lg shadow transition duration-150 ease-in-out mb-4">
+                <span class="text-xl leading-none">+</span>
+                <span class="new-chat-text">New Chat</span>
+            </button>
+            <div id="chat-list" class="flex-1 overflow-y-auto space-y-2">
+                </div>
+        </aside>
+
+        <main id="chat-container" class="flex-1 flex flex-col">
+            <div id="chat-messages" class="flex-1 space-y-4 overflow-y-auto p-4 bg-white dark:bg-slate-800 shadow rounded-lg mb-4">
+                </div>
+
+            <div class="bg-white dark:bg-slate-800 p-4 shadow rounded-lg">
+                <div id="error-message" class="text-red-500 dark:text-red-400 text-sm mb-2 hidden"></div>
+                <div id="api-key-prompt" class="text-amber-600 dark:text-amber-400 text-sm mb-2 hidden">
+                    API Key not set. Please <button id="open-settings-from-prompt" class="underline font-semibold">set your API Key</button> in settings.
+                </div>
+                <div id="uploaded-files-preview" class="flex flex-wrap gap-2 mb-2 hidden"></div>
+
+                <div id="action-buttons-container" class="flex flex-wrap items-center gap-2 mb-4">
+                    <button id="upload-button" title="Upload File" aria-label="Upload File" class="p-3 rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-slate-600 dark:text-slate-300">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0 3 3m-3-3-3 3M6.75 19.5a4.5 4.5 0 0 1-1.41-8.775 5.25 5.25 0 0 1 10.233-2.33 3 3 0 0 1 3.758 3.848A3.75 3.75 0 0 1 18 19.5H6.75Z" />
+                        </svg>
+                    </button>
+                    <input type="file" id="file-input" accept="image/png, image/jpeg, image/gif, image/avif, image/svg+xml, image/webp, text/plain, text/html, application/msword, application/vnd.openxmlformats-officedocument.wordprocessingml.document, application/pdf, text/csv, application/json" class="hidden">
+
+                    <button id="share-screen-button" title="Share Screen with AI" aria-label="Share Screen with AI" class="p-3 rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-slate-600 dark:text-slate-300">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 17.25v1.007a3 3 0 0 1-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0 1 15 18.257V17.25m6-12V15a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 15V5.25m18 0A2.25 2.25 0 0 0 18.75 3H5.25A2.25 2.25 0 0 0 3 5.25m18 0h.008v.008H21V5.25ZM9 12.75h.008v.008H9v-.008ZM12 12.75h.008v.008H12v-.008ZM15 12.75h.008v.008H15v-.008Z" />
+                        </svg>
+                    </button>
+
+                    <button id="image-gen-toggle-button" title="Toggle Image Generation" aria-label="Toggle Image Generation" class="p-3 rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-slate-600 dark:text-slate-300">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 1.5-1.5m1.5 1.5 1.5-1.5m-6.75 6.75h.75A2.25 2.25 0 0 0 4.5 18V9a2.25 2.25 0 0 1 2.25-2.25h10.5A2.25 2.25 0 0 1 19.5 9v9a2.25 2.25 0 0 0 2.25 2.25h.75m-14.25-10.5h.008v.008H7.5v-.008Zm6.75 0h.008v.008H14.25v-.008Z" />
+                        </svg>
+                    </button>
+
+                    <button id="deep-research-toggle-button" title="Toggle Deep Research (Unavailable)" aria-label="Toggle Deep Research (Unavailable)" class="p-3 rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-slate-600 dark:text-slate-300">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607ZM10.5 7.5v6m3-3h-6"/>
+                        </svg>
+                    </button>
+
+                    <button id="canvas-toggle-button" title="Toggle Canvas Mode (Unavailable)" aria-label="Toggle Canvas Mode (Unavailable)" class="p-3 rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-slate-600 dark:text-slate-300">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12c0 1.01-.195 1.98-.546 2.917a1.05 1.05 0 0 0-.759-.759 1.05 1.05 0 0 0-1.992.45c-.407 1.132-1.49 2.064-2.809 2.576a1.05 1.05 0 0 0-1.086.112A4.5 4.5 0 0 1 12 18.75c-2.34 0-4.24-1.9-4.5-4.24a1.05 1.05 0 0 0-.112-1.086A5.25 5.25 0 0 1 7.25 12c0-1.01.195-1.98.546-2.917a1.05 1.05 0 0 0 .759-.759 1.05 1.05 0 0 0 1.992.45c.407 1.132 1.49 2.064 2.809 2.576a1.05 1.05 0 0 0 1.086.112A4.5 4.5 0 0 1 12 5.25c2.34 0 4.24 1.9 4.5 4.24a1.05 1.05 0 0 0 .112 1.086A5.25 5.25 0 0 1 18.75 12Z" />
+                        </svg>
+                    </button>
+
+                    <button id="mic-button" title="Toggle Microphone" aria-label="Toggle Microphone" class="p-3 rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-slate-600 dark:text-slate-300">
+                        <svg id="mic-icon-idle" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 256 256"><path d="M128,176a48.05,48.05,0,0,0,48-48V64a48,48,0,0,0-96,0v64A48.05,48.05,0,0,0,128,176ZM96,64a32,32,0,0,1,64,0v64a32,32,0,0,1-64,0Zm40,151.6V240a8,8,0,0,1-16,0V215.6A80.07,80.07,0,0,1,48,128a8,8,0,0,1,16,0a64,64,0,0,0,128,0,8,8,0,0,1,16,0A80.07,80.07,0,0,1,136,215.6Z"></path></svg>
+                        <svg id="mic-icon-active" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 256 256" class="hidden"><path d="M128,176a48.05,48.05,0,0,0,48-48V64a48,48,0,0,0-96,0v64A48.05,48.05,0,0,0,128,176ZM96,64a32,32,0,0,1,64,0v64a32,32,0,0,1-64,0Zm40,151.6V240a8,8,0,0,1-16,0V215.6A80.07,80.07,0,0,1,48,128a8,8,0,0,1,16,0a64,64,0,0,0,128,0,8,8,0,0,1,16,0A80.07,80.07,0,0,1,136,215.6Z"></path></svg>
+                    </button>
+                    <button id="speaker-toggle-button" title="Toggle AI Voice" aria-label="Toggle AI Voice" class="p-3 rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-slate-600 dark:text-slate-300">
+                        <svg id="speaker-icon-on" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 16 16" class="hidden"><path d="M11.536 14.01A8.473 8.473 0 0 0 14.026 8a8.473 8.473 0 0 0-2.49-6.01l-.708.707A7.476 7.476 0 0 1 13.025 8c0 2.071-.84 3.946-2.197 5.303l.708.707z"/><path d="M10.121 12.596A6.48 6.48 0 0 0 12.025 8a6.48 6.48 0 0 0-1.904-4.596l-.707.707A5.483 5.483 0 0 1 11.025 8a5.483 5.483 0 0 1-1.61 3.89l.706.706z"/><path d="M8.707 11.182A4.486 4.486 0 0 0 10.025 8a4.486 4.486 0 0 0-1.318-3.182L8 5.525A3.489 3.489 0 0 1 9.025 8 3.49 3.49 0 0 1 8 10.475l.707.707zM6.717 3.55A.5.5 0 0 1 7 4v8a.5.5 0 0 1-.812.39L3.825 10.5H1.5A.5.5 0 0 1 1 10V6a.5.5 0 0 1 .5-.5h2.325l2.363-1.89a.5.5 0 0 1 .529-.06z"/></svg>
+                        <svg id="speaker-icon-off" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 16 16"><path d="M6.717 3.55A.5.5 0 0 1 7 4v8a.5.5 0 0 1-.812.39L3.825 10.5H1.5A.5.5 0 0 1 1 10V6a.5.5 0 0 1 .5-.5h2.325l2.363-1.89a.5.5 0 0 1 .529-.06zm7.137 2.096a.5.5 0 0 1 0 .708L12.207 8l1.647 1.646a.5.5 0 0 1-.708.708L11.5 8.707l-1.646 1.647a.5.5 0 0 1-.708-.708L10.793 8 9.146 6.354a.5.5 0 1 1 .708-.708L11.5 7.293l1.646-1.647a.5.5 0 0 1 .708 0z"/></svg>
+                    </button>
+                    <select id="voice-select-dropdown" title="Select AI Voice" aria-label="Select AI Voice" class="p-3 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent outline-none hidden">
+                    </select>
+                </div>
+
+                <div id="formatting-toolbar" class="formatting-toolbar">
+                    <button class="formatting-button" data-format="bold"><b>B</b></button>
+                    <button class="formatting-button" data-format="italic"><i>I</i></button>
+                    <button class="formatting-button" data-format="strikethrough"><s>S</s></button>
+                    <button class="formatting-button" data-format="code"><code>&lt;/&gt;</code></button>
+                    <button class="formatting-button" data-format="clear">Clear</button>
+                </div>
+
+                <div class="flex items-center space-x-2">
+                    <textarea id="message-input" rows="1" class="flex-1 p-3 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent outline-none" placeholder="Type or say your message..."></textarea>
+                    <button id="send-button" class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-5 rounded-lg shadow transition duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed">
+                        Send
+                    </button>
+                </div>
+                <div id="loading-indicator" class="mt-2 text-sm text-slate-500 dark:text-slate-400 hidden flex items-center">
+                    AI is thinking<span class="loading-dots"><span>.</span><span>.</span><span>.</span></span>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="settings-modal" class="modal">
+        <div class="modal-content bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 p-6 rounded-lg shadow-xl">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-semibold text-slate-700 dark:text-slate-200">Settings</h2>
+                <span id="close-modal-button" class="close-button text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer" aria-label="Close Settings">&times;</span>
+            </div>
+            
+            <div class="mb-4">
+                <label for="api-key-input" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Gemini API Key:</label>
+                <input type="password" id="api-key-input" class="w-full p-2 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-md focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent outline-none" placeholder="Enter your API Key">
+                <p id="api-key-status" class="text-xs mt-2 text-slate-500 dark:text-slate-400"></p>
+
+                <div class="flex items-center mt-2">
+                    <input type="checkbox" id="store-api-key-checkbox" class="form-checkbox h-4 w-4 text-blue-600 rounded focus:ring-blue-500">
+                    <label for="store-api-key-checkbox" class="ml-2 text-sm font-medium text-slate-700 dark:text-slate-300">Store API Key in browser for future sessions (less secure)</label>
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <h3 class="text-lg font-semibold text-slate-700 dark:text-slate-200 mb-2">Default Chat Settings</h3>
+                <div class="mb-4">
+                    <label for="default-ai-model-select" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Default AI Model for New Chats:</label>
+                    <select id="default-ai-model-select" class="w-full p-2 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-md focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent outline-none">
+                        </select>
+                    <p id="default-model-select-status" class="text-xs mt-1 text-slate-500 dark:text-slate-400 hidden"></p>
+                </div>
+            </div>
+
+            <div class="mb-6">
+                <h3 class="text-lg font-semibold text-slate-700 dark:text-slate-200 mb-2">Feature Visibility</h3>
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between">
+                        <label for="toggle-upload-button" class="text-sm font-medium text-slate-700 dark:text-slate-300">Show Upload Button:</label>
+                        <input type="checkbox" id="toggle-upload-button" class="form-checkbox h-5 w-5 text-blue-600 rounded focus:ring-blue-500">
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <label for="toggle-share-screen-button" class="text-sm font-medium text-slate-700 dark:text-slate-300">Show Share Screen Button:</label>
+                        <input type="checkbox" id="toggle-share-screen-button" class="form-checkbox h-5 w-5 text-blue-600 rounded focus:ring-blue-500">
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <label for="toggle-image-gen-button" class="text-sm font-medium text-slate-700 dark:text-slate-300">Show Image Generation Button:</label>
+                        <input type="checkbox" id="toggle-image-gen-button" class="form-checkbox h-5 w-5 text-blue-600 rounded focus:ring-blue-500">
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <label for="toggle-deep-research-button" class="text-sm font-medium text-slate-700 dark:text-slate-300">Show Deep Research Button:</label>
+                        <input type="checkbox" id="toggle-deep-research-button" class="form-checkbox h-5 w-5 text-blue-600 rounded focus:ring-blue-500">
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <label for="toggle-canvas-button" class="text-sm font-medium text-slate-700 dark:text-slate-300">Show Canvas Mode Button:</label>
+                        <input type="checkbox" id="toggle-canvas-button" class="form-checkbox h-5 w-5 text-blue-600 rounded focus:ring-blue-500">
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <label for="toggle-mic-button" class="text-sm font-medium text-slate-700 dark:text-slate-300">Show Microphone Button:</label>
+                        <input type="checkbox" id="toggle-mic-button" class="form-checkbox h-5 w-5 text-blue-600 rounded focus:ring-blue-500">
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <label for="toggle-speaker-button" class="text-sm font-medium text-slate-700 dark:text-slate-300">Show AI Voice Button:</label>
+                        <input type="checkbox" id="toggle-speaker-button" class="form-checkbox h-5 w-5 text-blue-600 rounded focus:ring-blue-500">
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <label for="toggle-thinking-button" class="text-sm font-medium text-slate-700 dark:text-slate-300">Show "Show Thinking" Button:</label>
+                        <input type="checkbox" id="toggle-thinking-button" class="form-checkbox h-5 w-5 text-blue-600 rounded focus:ring-blue-500">
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-6">
+                <button id="save-settings-button" class="w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-4 rounded-md shadow transition duration-150 ease-in-out">
+                    Save Settings
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="customize-chat-modal" class="modal">
+        <div class="modal-content bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 p-6 rounded-lg shadow-xl">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-semibold text-slate-700 dark:text-slate-200">Customize Chat</h2>
+                <span id="close-customize-modal-button" class="close-button text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer" aria-label="Close Customize Chat">&times;</span>
+            </div>
+            
+            <div class="mb-4">
+                <label for="chat-name-input" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Chat Name:</label>
+                <input type="text" id="chat-name-input" class="w-full p-2 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-md focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent outline-none" placeholder="Enter chat name">
+            </div>
+
+            <div class="mb-4">
+                <label for="chat-profile-picture-input" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Profile Picture:</label>
+                <div class="flex items-center space-x-4">
+                    <input type="file" id="chat-profile-picture-input" accept="image/*" class="hidden">
+                    <button id="select-profile-picture-button" class="bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 py-2 px-4 rounded-md hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors duration-150" aria-label="Select Profile Picture">
+                        Select Image
+                    </button>
+                    <img id="chat-profile-picture-preview" class="w-16 h-16 rounded-full object-cover border border-slate-300 dark:border-slate-600" src="" alt="Profile Preview">
+                    <button id="remove-profile-picture-button" class="text-red-500 hover:text-red-700 text-sm hidden" aria-label="Remove Profile Picture">Remove</button>
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <label for="chat-prompt-info-textarea" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Prompt Information (System Message):</label>
+                <textarea id="chat-prompt-info-textarea" class="w-full p-2 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-md focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent outline-none h-32 resize-y" placeholder="Enter any specific instructions or context for the AI that will be sent at the start of each conversation."></textarea>
+            </div>
+
+            <div class="mb-6">
+                <label for="ai-model-select" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">AI Model:</label>
+                <select id="ai-model-select" class="w-full p-2 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-md focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent outline-none">
+                    </select>
+                <p id="model-select-status" class="text-xs mt-1 text-slate-500 dark:text-slate-400 hidden"></p>
+            </div>
+
+            <div class="flex justify-end space-x-4">
+                <button id="cancel-customize-chat-button" class="px-4 py-2 rounded-md bg-slate-300 dark:bg-slate-600 text-slate-800 dark:text-slate-200 hover:bg-slate-400 dark:hover:bg-slate-700 transition-colors duration-150">
+                    Cancel
+                </button>
+                <button id="save-customize-chat-button" class="px-4 py-2 rounded-md bg-blue-500 text-white hover:bg-blue-600 transition-colors duration-150">
+                    Save
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="confirmation-modal" class="modal">
+        <div class="modal-content bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 p-6 rounded-lg shadow-xl">
+            <div class="flex justify-between items-center mb-6">
+                <h2 id="confirmation-title" class="text-xl font-semibold text-slate-700 dark:text-slate-200">Confirm Action</h2>
+                <span id="close-confirmation-modal-button" class="close-button text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer" aria-label="Close Confirmation">&times;</span>
+            </div>
+            <p id="confirmation-message" class="text-slate-700 dark:text-slate-300 mb-6">Are you sure you want to proceed?</p>
+            <div class="flex justify-end space-x-4">
+                <button id="cancel-confirmation-button" class="px-4 py-2 rounded-md bg-slate-300 dark:bg-slate-600 text-slate-800 dark:text-slate-200 hover:bg-slate-400 dark:hover:bg-slate-700 transition-colors duration-150">
+                    Cancel
+                </button>
+                <button id="confirm-action-button" class="px-4 py-2 rounded-md bg-red-500 text-white hover:bg-red-600 transition-colors duration-150">
+                    Confirm
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="message-modal" class="modal">
+        <div class="modal-content bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 p-6 rounded-lg shadow-xl">
+            <div class="flex justify-between items-center mb-6">
+                <h2 id="message-modal-title" class="text-xl font-semibold text-slate-700 dark:text-slate-200">Message</h2>
+                <span id="close-message-modal-button" class="close-button text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer" aria-label="Close Message">&times;</span>
+            </div>
+            <p id="message-modal-content" class="text-slate-700 dark:text-slate-300 mb-6"></p>
+            <div class="flex justify-end">
+                <button id="ok-message-modal-button" class="px-4 py-2 rounded-md bg-blue-500 text-white hover:bg-blue-600 transition-colors duration-150">
+                    OK
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <video id="screen-video" class="hidden" autoplay playsinline></video>
+    <canvas id="screen-canvas" class="hidden"></canvas>
+
+    <script>
+        // Wrap everything in an IIFE to avoid global scope pollution
+        (function() {
+            // --- Constants ---
+            const API_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models/';
+            const DEFAULT_GEMINI_MODEL_ID = 'gemini-1.5-flash-latest';
+            const IMAGEN_MODEL_ID = 'imagen-3.0-generate-002';
+            const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024; // 20MB
+            // SVG Data URL for default AI profile picture (a simple circle with 'AI')
+            const DEFAULT_AI_PROFILE_SVG = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%23e2e8f0'/%3E%3Ctext x='32' y='40' font-family='Inter, sans-serif' font-size='24' font-weight='600' text-anchor='middle' fill='%2364748b'%3EAI%3C/text%3E%3C/svg%3E`;
+
+
+            // --- DOM Elements ---
+            const messageInput = document.getElementById('message-input');
+            const sendButton = document.getElementById('send-button');
+            const micButton = document.getElementById('mic-button');
+            const micIconIdle = document.getElementById('mic-icon-idle');
+            const micIconActive = document.getElementById('mic-icon-active');
+            const speakerToggleButton = document.getElementById('speaker-toggle-button');
+            const speakerIconOn = document.getElementById('speaker-icon-on');
+            const speakerIconOff = document.getElementById('speaker-icon-off');
+            const voiceSelectDropdown = document.getElementById('voice-select-dropdown');
+            const chatMessages = document.getElementById('chat-messages');
+            const loadingIndicator = document.getElementById('loading-indicator');
+            const errorMessageDiv = document.getElementById('error-message');
+            
+            const settingsButton = document.getElementById('settings-button');
+            const settingsModal = document.getElementById('settings-modal');
+            const closeModalButton = document.getElementById('close-modal-button');
+            const apiKeyInput = document.getElementById('api-key-input');
+            const saveSettingsButton = document.getElementById('save-settings-button');
+            const apiKeyStatus = document.getElementById('api-key-status');
+            const apiKeyPrompt = document.getElementById('api-key-prompt');
+            const openSettingsFromPromptButton = document.getElementById('open-settings-from-prompt');
+            const storeApiKeyCheckbox = document.getElementById('store-api-key-checkbox');
+
+            // Chat sidebar and list elements
+            const chatSidebar = document.getElementById('chat-sidebar');
+            const collapseChatsButton = document.getElementById('collapse-chats-button');
+            const collapseIconExpanded = document.getElementById('collapse-icon-expanded');
+            const collapseIconCollapsed = document.getElementById('collapse-icon-collapsed');
+            const newChatButton = document.getElementById('new-chat-button');
+            const newChatButtonText = newChatButton.querySelector('.new-chat-text'); // Get the text span
+            const chatListContainer = document.getElementById('chat-list');
+
+            // File upload and image generation
+            const uploadButton = document.getElementById('upload-button');
+            const fileInput = document.getElementById('file-input');
+            const uploadedFilesPreview = document.getElementById('uploaded-files-preview');
+            const imageGenToggleButton = document.getElementById('image-gen-toggle-button');
+            const shareScreenButton = document.getElementById('share-screen-button');
+            const deepResearchToggleButton = document.getElementById('deep-research-toggle-button');
+            const canvasToggleButton = document.getElementById('canvas-toggle-button');
+
+            // Screen sharing elements
+            const screenVideo = document.getElementById('screen-video');
+            const screenCanvas = document.getElementById('screen-canvas');
+
+            // Custom Modals
+            const confirmationModal = document.getElementById('confirmation-modal');
+            const confirmationTitle = document.getElementById('confirmation-title');
+            const confirmationMessage = document.getElementById('confirmation-message');
+            const confirmActionButton = document.getElementById('confirm-action-button');
+            const cancelConfirmationButton = document.getElementById('cancel-confirmation-button');
+            const closeConfirmationModalButton = document.getElementById('close-confirmation-modal-button');
+
+            const messageModal = document.getElementById('message-modal');
+            const messageModalTitle = document.getElementById('message-modal-title');
+            const messageModalContent = document.getElementById('message-modal-content');
+            const okMessageModalButton = document.getElementById('ok-message-modal-button');
+            const closeMessageModalButton = document.getElementById('close-message-modal-button');
+
+            // Feature visibility toggles in settings
+            const toggleUploadButton = document.getElementById('toggle-upload-button');
+            const toggleShareScreenButton = document.getElementById('toggle-share-screen-button');
+            const toggleImageGenButton = document.getElementById('toggle-image-gen-button');
+            const toggleDeepResearchButton = document.getElementById('toggle-deep-research-button');
+            const toggleCanvasButton = document.getElementById('toggle-canvas-button');
+            const toggleMicButton = document.getElementById('toggle-mic-button');
+            const toggleSpeakerButton = document.getElementById('toggle-speaker-button');
+            const toggleThinkingButton = document.getElementById('toggle-thinking-button');
+
+            // Customize Chat Modal
+            const customizeChatModal = document.getElementById('customize-chat-modal');
+            const closeCustomizeModalButton = document.getElementById('close-customize-modal-button');
+            const chatNameInput = document.getElementById('chat-name-input');
+            const chatProfilePictureInput = document.getElementById('chat-profile-picture-input');
+            const selectProfilePictureButton = document.getElementById('select-profile-picture-button');
+            const removeProfilePictureButton = document.getElementById('remove-profile-picture-button');
+            const chatProfilePicturePreview = document.getElementById('chat-profile-picture-preview');
+            const chatPromptInfoTextarea = document.getElementById('chat-prompt-info-textarea');
+            const saveCustomizeChatButton = document.getElementById('save-customize-chat-button');
+            const cancelCustomizeChatButton = document.getElementById('cancel-customize-chat-button');
+            
+            // AI Model Selection
+            const aiModelSelect = document.getElementById('ai-model-select');
+            const modelSelectStatus = document.getElementById('model-select-status');
+            const currentModelDisplay = document.getElementById('current-model-display');
+            const defaultAiModelSelect = document.getElementById('default-ai-model-select');
+            const defaultModelSelectStatus = document.getElementById('default-model-select-status');
+
+            // Formatting toolbar buttons
+            const formattingToolbar = document.getElementById('formatting-toolbar');
+
+
+            // --- State Variables ---
+            // Stores all chat sessions: { chatId: { history: chatHistoryArray, name: 'Chat Name', profilePicture: 'data:image/...', promptInfo: '...', selectedModel: '...' } }
+            let chatSessions = {}; 
+            let currentChatId = null; // ID of the currently active chat
+            let chatHistory = []; // Reference to the chat history of the currentChatId
+            let geminiApiKey = ''; // API Key is NOT stored in localStorage by default for security
+            let storeApiKeyInLocalStorage = localStorage.getItem('storeApiKeyInLocalStorage') === 'true'; // User preference for storage
+            let aiVoiceEnabled = localStorage.getItem('aiVoiceEnabled') === 'true';
+            let isImageGenerationEnabled = localStorage.getItem('isImageGenerationEnabled') === 'true';
+            let isScreenSharingActive = false;
+            let screenStream = null;
+            let screenCaptureInterval = null;
+            let latestScreenBase64 = null;
+            let selectedVoiceURI = localStorage.getItem('selectedVoiceURI') || '';
+            let isRecording = false;
+            let availableVoices = [];
+            let selectedFiles = []; // Stores objects like { data: base64String, mimeType: string, name: string }.
+            let availableAiModels = []; // Stores fetched models globally
+            let defaultGeminiModelId = localStorage.getItem('defaultGeminiModelId') || DEFAULT_GEMINI_MODEL_ID;
+
+            // Feature visibility states (enabled by default)
+            let showUploadButton = localStorage.getItem('showUploadButton') !== 'false';
+            let showShareScreenButton = localStorage.getItem('showShareScreenButton') !== 'false';
+            let showImageGenButton = localStorage.getItem('showImageGenButton') !== 'false';
+            let showDeepResearchButton = localStorage.getItem('showDeepResearchButton') !== 'false';
+            let showCanvasButton = localStorage.getItem('showCanvasButton') !== 'false';
+            let showMicButton = localStorage.getItem('showMicButton') !== 'false';
+            let showSpeakerButton = localStorage.getItem('showSpeakerButton') !== 'false';
+            let showThinkingButton = localStorage.getItem('showThinkingButton') !== 'false';
+
+            // Sidebar collapse state
+            let isChatSidebarCollapsed = localStorage.getItem('isChatSidebarCollapsed') === 'true';
+
+
+            // --- Speech Recognition ---
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            let recognition;
+            if (SpeechRecognition) {
+                recognition = new SpeechRecognition();
+                recognition.continuous = false;
+                recognition.lang = 'en-US'; 
+                recognition.interimResults = false;
+                recognition.maxAlternatives = 1;
+
+                recognition.onresult = (event) => {
+                    const speechResult = event.results[0][0].transcript;
+                    messageInput.value = speechResult;
+                    messageInput.style.height = messageInput.scrollHeight + 'px'; // Adjust textarea height
+                    stopRecording();
+                    if (messageInput.value.trim() !== '' || selectedFiles.length > 0 || isScreenSharingActive) {
+                        sendMessage();
+                    }
+                };
+                recognition.onerror = (event) => {
+                    console.error("Speech recognition error", event.error);
+                    let errorMsg = `Mic error: ${event.error}`;
+                    if (event.error === 'no-speech') errorMsg = "No speech detected. Please try again.";
+                    if (event.error === 'not-allowed' || event.error === 'service-not-allowed') errorMsg = "Microphone access denied. Please enable it in your browser settings.";
+                    displayErrorMessage(errorMsg);
+                    stopRecording();
+                };
+                recognition.onend = () => { if (isRecording) stopRecording(); };
+            } else {
+                console.warn("Speech Recognition API not supported.");
+                if(micButton) micButton.style.display = 'none';
+            }
+
+            // --- Speech Synthesis ---
+            const synth = window.speechSynthesis;
+
+            function populateVoiceList() {
+                availableVoices = synth.getVoices();
+                voiceSelectDropdown.innerHTML = '';
+                
+                const defaultOption = document.createElement('option');
+                defaultOption.value = '';
+                defaultOption.textContent = 'Default Voice';
+                voiceSelectDropdown.appendChild(defaultOption);
+
+                availableVoices.forEach(voice => {
+                    const option = document.createElement('option');
+                    option.textContent = `${voice.name} (${voice.lang})`;
+                    option.setAttribute('data-lang', voice.lang);
+                    option.setAttribute('data-name', voice.name);
+                    option.value = voice.voiceURI;
+                    if (voice.voiceURI === selectedVoiceURI) {
+                        option.selected = true;
+                    }
+                    voiceSelectDropdown.appendChild(option);
+                });
+                voiceSelectDropdown.value = selectedVoiceURI;
+            }
+            
+            if (synth) {
+                populateVoiceList();
+                if (speechSynthesis.onvoiceschanged !== undefined) {
+                    speechSynthesis.onvoiceschanged = populateVoiceList;
+                }
+            } else {
+                console.warn("Speech Synthesis API not supported.");
+                if(speakerToggleButton) speakerToggleButton.style.display = 'none';
+                if(voiceSelectDropdown) voiceSelectDropdown.style.display = 'none';
+            }
+
+            /**
+             * Speaks the given text using the selected AI voice.
+             * @param {string} text - The text to speak.
+             */
+            function speakText(text) {
+                if (!aiVoiceEnabled || !synth || !text) return;
+                if (synth.speaking) {
+                    synth.cancel();
+                }
+                const utterThis = new SpeechSynthesisUtterance(text);
+                utterThis.onerror = (event) => console.error('SpeechSynthesisUtterance.onerror', event);
+
+                if (selectedVoiceURI) {
+                    const voice = availableVoices.find(v => v.voiceURI === selectedVoiceURI);
+                    if (voice) utterThis.voice = voice;
+                }
+                synth.speak(utterThis);
+            }
+            
+            /**
+             * Updates the UI for the speaker toggle button and voice select dropdown.
+             */
+            function updateSpeakerButtonUI() {
+                if (aiVoiceEnabled) {
+                    speakerIconOn.classList.remove('hidden');
+                    speakerIconOff.classList.add('hidden');
+                    voiceSelectDropdown.classList.remove('hidden');
+                    speakerToggleButton.classList.add('speaker-active');
+                } else {
+                    speakerIconOn.classList.add('hidden');
+                    speakerIconOff.classList.remove('hidden');
+                    voiceSelectDropdown.classList.add('hidden');
+                    speakerToggleButton.classList.remove('speaker-active');
+                }
+            }
+
+            /**
+             * Updates the UI for the image generation toggle button.
+             */
+            function updateImageGenButtonUI() {
+                if (isImageGenerationEnabled) {
+                    imageGenToggleButton.classList.add('image-gen-active');
+                } else {
+                    imageGenToggleButton.classList.remove('image-gen-active');
+                }
+            }
+
+            /**
+             * Updates the UI for the screen sharing button.
+             */
+            function updateScreenShareButtonUI() {
+                if (isScreenSharingActive) {
+                    shareScreenButton.classList.add('screen-sharing-active');
+                } else {
+                    shareScreenButton.classList.remove('screen-sharing-active');
+                }
+            }
+
+            /**
+             * Manages the enabled/disabled state of various interface elements.
+             * @param {boolean} isEnabled - True to enable, false to disable.
+             */
+            function setInterfaceEnabled(isEnabled) {
+                sendButton.disabled = !isEnabled;
+                
+                // Only enable buttons if they are configured to be shown and API key is present
+                const enableMic = isEnabled && showMicButton && !!geminiApiKey;
+                const enableUpload = isEnabled && showUploadButton && !!geminiApiKey;
+                const enableImageGen = isEnabled && showImageGenButton && !!geminiApiKey;
+                const enableShareScreen = isEnabled && showShareScreenButton && !!geminiApiKey;
+                const enableDeepResearch = isEnabled && showDeepResearchButton && !!geminiApiKey;
+                const enableCanvas = isEnabled && showCanvasButton && !!geminiApiKey;
+                const enableSpeakerButton = isEnabled && showSpeakerButton; // Speaker doesn't strictly need API key to toggle
+
+                if (micButton) micButton.disabled = !enableMic;
+                if (speakerToggleButton) speakerToggleButton.disabled = !enableSpeakerButton;
+                if (uploadButton) uploadButton.disabled = !enableUpload;
+                if (imageGenToggleButton) imageGenToggleButton.disabled = !enableImageGen;
+                if (shareScreenButton) shareScreenButton.disabled = !enableShareScreen;
+                if (deepResearchToggleButton) deepResearchToggleButton.disabled = !enableDeepResearch;
+                if (canvasToggleButton) canvasToggleButton.disabled = !enableCanvas;
+
+                // API key prompt is critical for enabling inputs
+                if (!geminiApiKey) {
+                    apiKeyPrompt.classList.remove('hidden');
+                    sendButton.disabled = true;
+                    // Force disable all functional buttons if no API key
+                    if (micButton) micButton.disabled = true;
+                    if (uploadButton) uploadButton.disabled = true;
+                    if (imageGenToggleButton) imageGenToggleButton.disabled = true;
+                    if (shareScreenButton) shareScreenButton.disabled = true;
+                    if (deepResearchToggleButton) deepResearchToggleButton.disabled = true;
+                    if (canvasToggleButton) canvasToggleButton.disabled = true;
+                } else {
+                    apiKeyPrompt.classList.add('hidden');
+                }
+            }
+
+            /**
+             * Updates the visibility of all action buttons based on settings.
+             */
+            function updateButtonVisibilityUI() {
+                if (uploadButton) uploadButton.style.display = showUploadButton ? 'block' : 'none';
+                if (shareScreenButton) shareScreenButton.style.display = showShareScreenButton ? 'block' : 'none';
+                if (imageGenToggleButton) imageGenToggleButton.style.display = showImageGenButton ? 'block' : 'none';
+                if (deepResearchToggleButton) deepResearchToggleButton.style.display = showDeepResearchButton ? 'block' : 'none';
+                if (canvasToggleButton) canvasToggleButton.style.display = showCanvasButton ? 'block' : 'none';
+                if (micButton) micButton.style.display = showMicButton ? 'block' : 'none';
+                if (speakerToggleButton) speakerToggleButton.style.display = showSpeakerButton ? 'block' : 'none';
+
+                // Also update the state of the checkboxes in the settings modal
+                if (toggleUploadButton) toggleUploadButton.checked = showUploadButton;
+                if (toggleShareScreenButton) toggleShareScreenButton.checked = showShareScreenButton;
+                if (toggleImageGenButton) toggleImageGenButton.checked = showImageGenButton;
+                if (toggleDeepResearchButton) toggleDeepResearchButton.checked = showDeepResearchButton;
+                if (toggleCanvasButton) toggleCanvasButton.checked = showCanvasButton;
+                if (toggleMicButton) toggleMicButton.checked = showMicButton;
+                if (toggleSpeakerButton) toggleSpeakerButton.checked = showSpeakerButton;
+                if (toggleThinkingButton) toggleThinkingButton.checked = showThinkingButton;
+
+                updateSpeakerButtonUI();
+                updateImageGenButtonUI();
+                updateScreenShareButtonUI();
+            }
+
+            // --- Initialization ---
+            /**
+             * Initializes the application state and UI.
+             */
+            async function initializeApp() {
+                // Load API Key preference
+                storeApiKeyInLocalStorage = localStorage.getItem('storeApiKeyInLocalStorage') === 'true'; 
+                if (storeApiKeyInLocalStorage) {
+                    geminiApiKey = localStorage.getItem('geminiApiKey') || ''; // Load key if preference is true
+                } else {
+                    geminiApiKey = ''; // Ensure it's empty if preference is false
+                }
+                
+                // Load feature visibility settings from localStorage
+                showUploadButton = localStorage.getItem('showUploadButton') !== 'false';
+                showShareScreenButton = localStorage.getItem('showShareScreenButton') !== 'false';
+                showImageGenButton = localStorage.getItem('showImageGenButton') !== 'false';
+                showDeepResearchButton = localStorage.getItem('showDeepResearchButton') !== 'false';
+                showCanvasButton = localStorage.getItem('showCanvasButton') !== 'false';
+                showMicButton = localStorage.getItem('showMicButton') !== 'false';
+                showSpeakerButton = localStorage.getItem('showSpeakerButton') !== 'false';
+                showThinkingButton = localStorage.getItem('showThinkingButton') !== 'false';
+                isChatSidebarCollapsed = localStorage.getItem('isChatSidebarCollapsed') === 'true';
+
+
+                // Apply feature visibility and UI updates
+                updateButtonVisibilityUI();
+                setInterfaceEnabled(true); // Initialize button states based on API key presence
+                toggleChatSidebar(false); // Apply initial collapsed state without toggling
+
+                // Load chat sessions and set up initial chat
+                loadChatSessionsFromStorage();
+                updateApiKeyStatus(); // Update API key status in settings modal
+                await fetchAvailableModels(); // Fetch models early
+                updateCurrentModelDisplay(); // Update current model in header
+
+                // Add a welcome message if the current chat is truly empty and no API key is set
+                if (chatHistory.length === 0) {
+                    if (!geminiApiKey) {
+                        addMessageToChat("Welcome! Please set your Gemini API Key in the settings to start chatting. You can choose to store it for convenience.", 'system');
+                    } else {
+                        addMessageToChat("Welcome! How can I help you today?", 'system');
+                    }
+                }
+                // Display history for the current chat
+                displayCurrentChatHistory();
+            }
+
+            /**
+             * Toggles the visibility of the thinking details for a given message.
+             * @param {HTMLElement} buttonElement - The "Show Thinking" button that was clicked.
+             */
+            function toggleThinkingDetails(buttonElement) {
+                const thinkingDetails = buttonElement.nextElementSibling;
+                if (thinkingDetails && thinkingDetails.classList.contains('thinking-details')) {
+                    if (thinkingDetails.style.display === 'block') {
+                        thinkingDetails.style.display = 'none';
+                        buttonElement.textContent = 'Show Thinking';
+                    } else {
+                        thinkingDetails.style.display = 'block';
+                        buttonElement.textContent = 'Hide Thinking';
+                    }
+                }
+            }
+
+            /**
+             * Copies the given text to the clipboard.
+             * @param {string} text - The text to copy.
+             */
+            function copyCodeToClipboard(text) {
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                textarea.style.position = 'fixed';
+                document.body.appendChild(textarea);
+                textarea.focus();
+                textarea.select();
+                try {
+                    document.execCommand('copy');
+                    showMessageModal('Code Copied', 'Code copied to clipboard!'); 
+                } catch (err) {
+                    console.error('Unable to copy to clipboard', err);
+                    showMessageModal('Copy Failed', 'Failed to copy code to clipboard.');
+                }
+                document.body.removeChild(textarea);
+            }
+
+            /**
+             * Toggles the visibility of a code block.
+             * @param {HTMLElement} buttonElement - The button that was clicked.
+             */
+            function toggleCodeBlock(buttonElement) {
+                const codeBlockWrapper = buttonElement.closest('.code-block-wrapper');
+                if (!codeBlockWrapper) return;
+                const contentArea = codeBlockWrapper.querySelector('pre'); 
+                
+                if (contentArea) {
+                    contentArea.classList.toggle('collapsed-view'); 
+                    if (contentArea.classList.contains('collapsed-view')) {
+                        buttonElement.textContent = 'Expand';
+                    } else {
+                        buttonElement.textContent = 'Collapse';
+                    }
+                }
+            }
+
+
+            /**
+             * Adds a message bubble to the chat display.
+             * @param {string} message - The text content of the message.
+             * @param {string} sender - The sender of the message ('user', 'ai', or 'system').
+             * @param {boolean} [isLoading=false] - True if this is a temporary loading message.
+             * @param {Array<Object>} [files=[]] - Array of file objects ({data: base64DataUrl, mimeType: string, name: string}) for display.
+             * @param {number} [messageIndex=-1] - The index of the message in chatHistory, for deletion, editing, regeneration.
+             * @param {number} [totalGenerations=1] - Total number of generations for an AI message.
+             * @param {number} [currentGenIndex=0] - Current generation index for an AI message.
+             */
+            function addMessageToChat(message, sender, isLoading = false, files = [], messageIndex = -1, totalGenerations = 1, currentGenIndex = 0) {
+                const messageElement = document.createElement('div');
+                messageElement.classList.add('chat-bubble');
+                messageElement.dataset.messageIndex = messageIndex;
+
+                if (sender === 'user') {
+                    messageElement.classList.add('bg-blue-500', 'text-white', 'dark:bg-blue-700', 'dark:text-white', 'user-bubble');
+                } else if (sender === 'ai') {
+                    messageElement.classList.add('bg-gray-200', 'dark:bg-slate-700', 'text-slate-800', 'dark:text-slate-200', 'ai-bubble');
+                } else { // system messages
+                    messageElement.classList.add('system-bubble');
+                }
+                
+                const textContentContainer = document.createElement('div');
+                textContentContainer.classList.add('message-text-content');
+                textContentContainer.innerHTML = marked.parse(message); 
+                messageElement.appendChild(textContentContainer);
+
+                if (sender === 'ai' && !isLoading) {
+                    messageElement.querySelectorAll('pre code').forEach(codeElement => {
+                        const preElement = codeElement.closest('pre');
+                        if (!preElement) return;
+
+                        const codeContent = codeElement.textContent;
+
+                        const codeBlockWrapper = document.createElement('div');
+                        codeBlockWrapper.classList.add('code-block-wrapper');
+
+                        const codeHeader = document.createElement('div');
+                        codeHeader.classList.add('code-block-header');
+
+                        const languageMatch = codeElement.className.match(/language-(\w+)/);
+                        const language = languageMatch ? languageMatch[1] : 'plaintext';
+
+                        const langSpan = document.createElement('span');
+                        langSpan.classList.add('code-block-language');
+                        langSpan.textContent = language.charAt(0).toUpperCase() + language.slice(1);
+                        codeHeader.appendChild(langSpan);
+
+                        const headerButtons = document.createElement('div');
+                        headerButtons.classList.add('flex', 'items-center');
+
+                        const copyButton = document.createElement('button');
+                        copyButton.classList.add('copy-code-button');
+                        copyButton.textContent = 'Copy Code';
+                        copyButton.onclick = () => copyCodeToClipboard(codeContent);
+                        headerButtons.appendChild(copyButton);
+
+                        const toggleButton = document.createElement('button');
+                        toggleButton.classList.add('toggle-code-button');
+                        toggleButton.textContent = 'Expand';
+                        toggleButton.onclick = () => toggleCodeBlock(toggleButton);
+                        headerButtons.appendChild(toggleButton);
+
+                        codeHeader.appendChild(headerButtons);
+                        codeBlockWrapper.appendChild(codeHeader);
+                        
+                        codeBlockWrapper.appendChild(preElement);
+                        preElement.classList.add('collapsed-view');
+
+                        textContentContainer.insertBefore(codeBlockWrapper, preElement.nextSibling);
+                    });
+                }
+
+                if (files && files.length > 0) {
+                    files.forEach(file => {
+                        if (file.mimeType.startsWith('image/')) {
+                            const img = document.createElement('img');
+                            img.src = file.data; 
+                            img.alt = `Uploaded image: ${file.name}`;
+                            img.classList.add('mt-2', 'rounded-md', 'max-w-full', 'h-auto', 'max-h-48', 'object-contain');
+                            messageElement.appendChild(img);
+                        } else {
+                            const filePreview = document.createElement('div');
+                            filePreview.classList.add('file-preview-item', 'mt-2');
+                            let fileIconSVG = '';
+                            if (file.mimeType.includes('pdf')) {
+                                fileIconSVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 file-icon"><path fill-rule="evenodd" d="M19.5 21a3 3 0 0 0 3-3V9a1.5 1.5 0 0 0-1.5-1.5H15V2.25A2.25 2.25 0 0 0 12.75 0h-3a2.25 2.25 0 0 0-2.25 2.25V7.5H4.5A1.5 1.5 0 0 0 3 9v9a3 3 0 0 0 3 3h13.5Zm-9-15a.75.75 0 0 0-1.5 0v4.5a.75.75 0 0 0 1.5 0v-4.5Zm3 0a.75.75 0 0 0-1.5 0v4.5a.75.75 0 0 0 1.5 0v-4.5Zm3 0a.75.75 0 0 0-1.5 0v4.5a.75.75 0 0 0 1.5 0v-4.5Z" clip-rule="evenodd" /></svg>`;
+                            } else if (file.mimeType.includes('wordprocessingml') || file.mimeType.includes('msword')) {
+                                fileIconSVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 file-icon"><path fill-rule="evenodd" d="M19.5 21a3 3 0 0 0 3-3V9a1.5 1.5 0 0 0-1.5-1.5h-8.75a.75.75 0 0 1-.75-.75V3a1.5 1.5 0 0 0-1.5-1.5H5.25A3 3 0 0 0 2.25 3v15a3 3 0 0 0 3 3h13.5Zm-10.5-9.75a.75.75 0 0 0-1.5 0v4.5a.75.75 0 0 0 1.5 0v-4.5ZM11.25 12a.75.75 0 0 0-1.5 0v4.5a.75.75 0 0 0 1.5 0v-4.5ZM14.25 12a.75.75 0 0 0-1.5 0v4.5a.75.75 0 0 0 1.5 0v-4.5Z" clip-rule="evenodd" /></svg>`;
+                            } else if (file.mimeType.includes('text/') || file.mimeType.includes('json') || file.mimeType.includes('csv') || file.mimeType.includes('html')) {
+                                fileIconSVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 file-icon"><path fill-rule="evenodd" d="M1.5 6.75a3 3 0 0 1 3-3h9.75a3 3 0 0 1 3 3v7.5a3 3 0 0 1-3 3H4.5a3 3 0 0 1-3-3V6.75ZM16.03 3.22a.75.75 0 0 1 0 1.06l-1.59 1.59a.75.75 0 0 1-1.06 0L12 4.31l-1.38 1.38a.75.75 0 0 1-1.06 0L8 4.31l-1.38 1.38a.75.75 0 0 1-1.06 0L4 4.31V6.75a.75.75 0 0 0 .75.75h13.5a.75.75 0 0 0 .75-.75V4.31l-1.38-1.38Zm-1.5 9a.75.75 0 0 0 0 1.5h-.75a.75.75 0 0 0 0 1.5h.75a.75.75 0 0 0 0 1.5H9.75a.75.75 0 0 0 0-1.5h.75a.75.75 0 0 0 0-1.5h-.75a.75.75 0 0 0 0-1.5h4.5Z" clip-rule="evenodd" /></svg>`;
+                            } else {
+                                fileIconSVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 file-icon"><path fill-rule="evenodd" d="M1.5 6.75a3 3 0 0 1 3-3h9.75a3 3 0 0 1 3 3v7.5a3 3 0 0 1-3 3H4.5a3 3 0 0 1-3-3V6.75ZM16.03 3.22a.75.75 0 0 1 0 1.06l-1.59 1.59a.75.75 0 0 1-1.06 0L12 4.31l-1.38 1.38a.75.75 0 0 1-1.06 0L8 4.31l-1.38 1.38a.75.75 0 0 1-1.06 0L4 4.31V6.75a.75.75 0 0 0 .75.75h13.5a.75.75 0 0 0 .75-.75V4.31l-1.38-1.38Zm-1.5 9a.75.75 0 0 0 0 1.5h-.75a.75.75 0 0 0 0 1.5h.75a.75.75 0 0 0 0 1.5H9.75a.75.75 0 0 0 0-1.5h.75a.75.75 0 0 0 0-1.5h-.75a.75.75 0 0 0 0-1.5h4.5Z" clip-rule="evenodd" /></svg>`;
+                            }
+
+                            filePreview.innerHTML = `
+                                ${fileIconSVG}
+                                <span class="file-name">${file.name}</span>
+                                <span class="file-type">(${file.mimeType.split('/').pop() || 'document'})</span>
+                            `;
+                            messageElement.appendChild(filePreview);
+                        }
+                    });
+                }
+
+                if (sender !== 'system' && !isLoading) {
+                    const actionsContainer = document.createElement('div');
+                    actionsContainer.classList.add('message-actions');
+
+                    const editButton = document.createElement('button');
+                    editButton.classList.add('message-action-button', 'edit-button');
+                    editButton.textContent = 'Edit';
+                    editButton.addEventListener('click', () => editMessage(messageIndex));
+                    actionsContainer.appendChild(editButton);
+
+                    if (sender === 'ai') {
+                        const regenerateButton = document.createElement('button');
+                        regenerateButton.classList.add('message-action-button', 'regenerate-button');
+                        regenerateButton.textContent = 'Regenerate';
+                        regenerateButton.addEventListener('click', () => showConfirmationModal('Regenerate Response', 'Are you sure you want to regenerate this AI response? This will delete all subsequent messages.', () => regenerateResponse(messageIndex)));
+                        actionsContainer.appendChild(regenerateButton);
+
+                        if (totalGenerations > 1) {
+                            const navContainer = document.createElement('div');
+                            navContainer.classList.add('flex', 'items-center', 'space-x-1');
+
+                            const prevButton = document.createElement('button');
+                            prevButton.textContent = '<';
+                            prevButton.classList.add('message-action-button', 'bg-slate-300', 'dark:bg-slate-600', 'text-slate-800', 'dark:text-slate-200');
+                            prevButton.disabled = currentGenIndex === 0;
+                            prevButton.addEventListener('click', () => switchGeneration(messageIndex, currentGenIndex - 1));
+                            navContainer.appendChild(prevButton);
+
+                            const genText = document.createElement('span');
+                            genText.textContent = `${currentGenIndex + 1}/${totalGenerations}`;
+                            genText.classList.add('text-xs', 'text-slate-600', 'dark:text-slate-300');
+                            navContainer.appendChild(genText);
+
+                            const nextButton = document.createElement('button');
+                            nextButton.textContent = '>';
+                            nextButton.classList.add('message-action-button', 'bg-slate-300', 'dark:bg-slate-600', 'text-slate-800', 'dark:text-slate-200');
+                            nextButton.disabled = currentGenIndex === totalGenerations - 1;
+                            nextButton.addEventListener('click', () => switchGeneration(messageIndex, currentGenIndex + 1));
+                            navContainer.appendChild(nextButton);
+
+                            actionsContainer.appendChild(navContainer);
+                        }
+                    }
+
+                    if (sender === 'ai' && showThinkingButton) {
+                        const showThinkingButtonElement = document.createElement('button');
+                        showThinkingButtonElement.classList.add('message-action-button', 'show-thinking-button');
+                        showThinkingButtonElement.textContent = 'Show Thinking';
+                        showThinkingButtonElement.addEventListener('click', (event) => {
+                            toggleThinkingDetails(event.target);
+                        });
+                        actionsContainer.appendChild(showThinkingButtonElement);
+
+                        const thinkingDetailsDiv = document.createElement('div');
+                        thinkingDetailsDiv.classList.add('thinking-details');
+                        thinkingDetailsDiv.textContent = 'Thinking details are not available for this model/API via the current API.';
+                        messageElement.appendChild(thinkingDetailsDiv);
+                    }
+                    
+                    messageElement.appendChild(actionsContainer);
+                }
+
+                if (sender !== 'system' && !isLoading) {
+                    const deleteMsgButton = document.createElement('button');
+                    deleteMsgButton.classList.add('delete-message-button');
+                    deleteMsgButton.textContent = 'X';
+                    deleteMsgButton.title = 'Delete message';
+                    deleteMsgButton.ariaLabel = 'Delete message';
+                    deleteMsgButton.addEventListener('click', () => showConfirmationModal('Delete Message', 'Are you sure you want to delete this message?', () => deleteMessageConfirmed(messageIndex)));
+                    messageElement.appendChild(deleteMsgButton);
+                }
+
+                chatMessages.appendChild(messageElement);
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+
+                if (isLoading) messageElement.setAttribute('id', 'loading-bubble');
+            }
+
+
+            /**
+             * Clears any displayed error messages.
+             */
+            function clearErrorMessage() {
+                errorMessageDiv.textContent = '';
+                errorMessageDiv.classList.add('hidden');
+            }
+
+            /**
+             * Displays an error message temporarily.
+             * @param {string} message - The error message to display.
+             */
+            function displayErrorMessage(message) {
+                errorMessageDiv.textContent = message;
+                errorMessageDiv.classList.remove('hidden');
+                setTimeout(clearErrorMessage, 6000);
+            }
+
+            /**
+             * Formats a subset of chat history for the Gemini API.
+             * @param {Array<Object>} historySubset - The array of message objects to format.
+             * @returns {Array<Object>} The formatted array of message objects ready for the API.
+             */
+            function formatChatHistoryForApi(historySubset) {
+                return historySubset.map(message => {
+                    if (message.role === 'user' || message.role === 'system') {
+                        return { role: message.role, parts: message.parts };
+                    } else if (message.role === 'model' && message.generations && message.generations.length > 0) {
+                        const currentGeneration = message.generations[message.currentGenerationIndex || 0];
+                        return { role: message.role, parts: currentGeneration.parts };
+                    }
+                    return null; 
+                }).filter(msg => msg !== null);
+            }
+
+            /**
+             * Sends the user's message to the Gemini API and handles the response.
+             */
+            async function sendMessage() {
+                const messageText = messageInput.value.trim();
+                if (!messageText && selectedFiles.length === 0 && !isScreenSharingActive) return;
+
+                if (!geminiApiKey) {
+                    displayErrorMessage("API Key is not set. Please set it in settings.");
+                    return;
+                }
+                clearErrorMessage();
+
+                const userMessagePartsForAPI = [];
+                const userMessagePartsForDisplay = [];
+
+                if (messageText) {
+                    userMessagePartsForAPI.push({ text: messageText });
+                    userMessagePartsForDisplay.push({ text: messageText });
+                }
+                selectedFiles.forEach(file => {
+                    const base64Only = file.data.split(',')[1];
+                    userMessagePartsForAPI.push({ inlineData: { mimeType: file.mimeType, data: base64Only } });
+                    userMessagePartsForDisplay.push({ data: file.data, mimeType: file.mimeType, name: file.name });
+                });
+                if (isScreenSharingActive && latestScreenBase64) {
+                    userMessagePartsForAPI.push({ inlineData: { mimeType: "image/jpeg", data: latestScreenBase64.split(',')[1] } });
+                    userMessagePartsForDisplay.push({ data: latestScreenBase64, mimeType: "image/jpeg", name: "Screen Capture" });
+                    latestScreenBase64 = null;
+                }
+
+                const currentUserMessageObject = { role: "user", parts: userMessagePartsForAPI };
+                chatHistory.push(currentUserMessageObject);
+                
+                let displayMessageText = '';
+                const displayFiles = [];
+                userMessagePartsForDisplay.forEach(part => {
+                    if (part.text) {
+                        displayMessageText += part.text;
+                    } else if (part.data && part.mimeType) {
+                        displayFiles.push({ data: part.data, mimeType: part.mimeType, name: part.name });
+                    }
+                });
+                addMessageToChat(displayMessageText, 'user', false, displayFiles, chatHistory.length - 1);
+
+                saveChatSessionsToStorage();
+
+                messageInput.value = '';
+                selectedFiles = [];
+                uploadedFilesPreview.innerHTML = '';
+                uploadedFilesPreview.classList.add('hidden');
+                messageInput.style.height = 'auto'; // Reset textarea height
+
+                setInterfaceEnabled(false);
+                loadingIndicator.classList.remove('hidden');
+                loadingIndicator.textContent = "AI is thinking";
+                addMessageToChat("Thinking...", 'ai', true);
+
+                try {
+                    let chatHistoryForApi = [...chatHistory];
+                    const currentChat = chatSessions[currentChatId];
+                    const promptInfo = currentChat ? currentChat.promptInfo : '';
+                    if (promptInfo) {
+                        chatHistoryForApi.unshift({ role: "system", parts: [{ text: promptInfo }] });
+                    }
+                    const selectedModelForChat = currentChat ? currentChat.selectedModel : defaultGeminiModelId;
+
+                    const textApiUrl = `${API_BASE_URL}${selectedModelForChat}:generateContent?key=${geminiApiKey}`;
+                    const payload = { contents: formatChatHistoryForApi(chatHistoryForApi) };
+
+                    payload.generationConfig = { temperature: 0.9 };
+
+                    const textResponse = await fetch(textApiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!textResponse.ok) {
+                        const errorData = await textResponse.json();
+                        let detailedError = `Text AI Error: ${textResponse.status}`;
+                        if (errorData && errorData.error && errorData.error.message) detailedError += ` - ${errorData.error.message}`;
+                        throw new Error(detailedError);
+                    }
+
+                    const textResult = await textResponse.json();
+                    let aiResponseText = "Sorry, I couldn't get a text response.";
+                    if (textResult.candidates && textResult.candidates[0]?.content?.parts?.[0]?.text) {
+                        aiResponseText = textResult.candidates[0].content.parts[0].text;
+                    } else if (textResult.promptFeedback?.blockReason) {
+                        aiResponseText = `Text response blocked: ${textResult.promptFeedback.blockReason}.`;
+                    }
+
+                    let generatedImageForDisplay = null;
+                    let generatedImageForHistory = null;
+                    const originalUserMessageText = userPromptMessage.parts.find(p => p.text)?.text || '';
+
+                    if (isImageGenerationEnabled && originalUserMessageText) {
+                        loadingIndicator.textContent = "AI is generating image";
+                        try {
+                            const imagePayload = { instances: { prompt: originalUserMessageText }, parameters: { "sampleCount": 1} };
+                            const imageApiUrl = `${API_BASE_URL}${IMAGEN_MODEL_ID}:predict?key=${geminiApiKey}`;
+
+                            const imageResponse = await fetch(imageApiUrl, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(imagePayload)
+                            });
+
+                            if (!imageResponse.ok) {
+                                const errorData = await imageResponse.json();
+                                throw new Error(`Image API Error: ${imageResponse.status} - ${errorData.error?.message || 'Unknown error'}`);
+                            }
+
+                            const imageResult = await imageResponse.json();
+                            if (imageResult.predictions && imageResult.predictions.length > 0 && imageResult.predictions[0].bytesBase64Encoded) {
+                                const imageUrl = `data:image/png;base64,${imageResult.predictions[0].bytesBase64Encoded}`;
+                                generatedImageForDisplay = { data: imageUrl, mimeType: "image/png", name: "Generated Image" };
+                                generatedImageForHistory = { inlineData: { mimeType: "image/png", data: imageResult.predictions[0].bytesBase64Encoded } };
+                            } else {
+                                console.warn("No image generated or unexpected image response structure.");
+                            }
+                        } catch (imageError) {
+                            console.error("Error generating image:", imageError);
+                            displayErrorMessage(`Image generation failed: ${imageError.message}`);
+                        }
+                    }
+
+                    const loadingBubble = document.getElementById('loading-bubble');
+                    if (loadingBubble) {
+                        loadingBubble.remove();
+                    }
+
+                    const aiResponsePartsForHistory = [{ text: aiResponseText }];
+                    if (generatedImageForHistory) {
+                        aiResponsePartsForHistory.push(generatedImageForHistory);
+                    }
+
+                    chatHistory.push({
+                        role: "model",
+                        generations: [{ parts: aiResponsePartsForHistory }],
+                        currentGenerationIndex: 0
+                    });
+                    saveChatSessionsToStorage();
+                    
+                    displayCurrentChatHistory();
+                    speakText(aiResponseText);
+
+                } catch (error) {
+                    const errorMessageText = `Error: ${error.message || "Could not connect to AI."}`;
+                    const loadingBubble = document.getElementById('loading-bubble');
+                    if (loadingBubble) {
+                        loadingBubble.remove();
+                    }
+                    chatHistory.push({
+                        role: "model",
+                        generations: [{ parts: [{ text: errorMessageText }] }],
+                        currentGenerationIndex: 0
+                    });
+                    displayCurrentChatHistory();
+                    displayErrorMessage(errorMessageText);
+                } finally {
+                    setInterfaceEnabled(true);
+                    loadingIndicator.classList.add('hidden');
+                    loadingIndicator.textContent = "AI is thinking";
+                    messageInput.focus();
+                    renderChatList();
+                    hideConfirmationModal();
+                }
+            }
+
+            /**
+             * Initiates editing a message.
+             * @param {number} indexToEdit - The index of the message in chatHistory to edit.
+             */
+            function editMessage(indexToEdit) {
+                const messageToEdit = chatHistory[indexToEdit];
+                if (!messageToEdit || messageToEdit.role === 'system') return;
+
+                const messageElement = chatMessages.querySelector(`[data-message-index="${indexToEdit}"]`);
+                if (!messageElement) return;
+
+                const textContentDiv = messageElement.querySelector('.message-text-content');
+                if (!textContentDiv) {
+                    console.error("Message content container not found for editing.");
+                    return;
+                }
+
+                let currentText = '';
+                if (messageToEdit.role === 'user') {
+                    currentText = messageToEdit.parts.find(p => p.text)?.text || '';
+                } else if (messageToEdit.role === 'model') {
+                    currentText = messageToEdit.generations[messageToEdit.currentGenerationIndex].parts.find(p => p.text)?.text || '';
+                }
+
+                const textarea = document.createElement('textarea');
+                textarea.classList.add('edit-textarea');
+                textarea.value = currentText;
+                
+                textContentDiv.style.display = 'none';
+                textContentDiv.parentNode.insertBefore(textarea, textContentDiv.nextSibling);
+
+                const actionsContainer = messageElement.querySelector('.message-actions');
+                if (actionsContainer) actionsContainer.classList.add('hidden');
+                const deleteButton = messageElement.querySelector('.delete-message-button');
+                if (deleteButton) deleteButton.classList.add('hidden');
+
+                const editControls = document.createElement('div');
+                editControls.classList.add('message-actions', 'edit-controls');
+
+                const saveButton = document.createElement('button');
+                saveButton.classList.add('message-action-button', 'save-button');
+                saveButton.textContent = 'Save';
+                saveButton.addEventListener('click', () => saveEditedMessage(indexToEdit, textarea.value));
+                editControls.appendChild(saveButton);
+
+                const cancelButton = document.createElement('button');
+                cancelButton.classList.add('message-action-button', 'cancel-button');
+                cancelButton.textContent = 'Cancel';
+                cancelButton.addEventListener('click', () => cancelEditMessage(indexToEdit, textarea));
+                editControls.appendChild(cancelButton);
+
+                if (messageToEdit.role === 'model') {
+                    const regenerateButton = document.createElement('button');
+                    regenerateButton.classList.add('message-action-button', 'regenerate-button');
+                    regenerateButton.textContent = 'Regenerate';
+                    regenerateButton.addEventListener('click', () => showConfirmationModal('Regenerate Response', 'Are you sure you want to regenerate this AI response? This will delete all subsequent messages.', () => regenerateResponse(indexToEdit)));
+                    editControls.appendChild(regenerateButton);
+                }
+
+                messageElement.appendChild(editControls);
+                textarea.focus();
+                textarea.select();
+            }
+
+            /**
+             * Saves the edited message content.
+             * @param {number} indexToEdit - The index of the message in chatHistory that was edited.
+             * @param {string} newText - The new text content for the message.
+             */
+            function saveEditedMessage(indexToEdit, newText) {
+                const message = chatHistory[indexToEdit];
+                if (!message) return;
+
+                if (message.role === 'user') {
+                    const textPart = message.parts.find(p => p.text);
+                    if (textPart) {
+                        textPart.text = newText.trim();
+                    } else {
+                        message.parts.unshift({ text: newText.trim() });
+                    }
+                } else if (message.role === 'model') {
+                    const currentGeneration = message.generations[message.currentGenerationIndex];
+                    const textPart = currentGeneration.parts.find(p => p.text);
+                    if (textPart) {
+                        textPart.text = newText.trim();
+                    } else {
+                        currentGeneration.parts.unshift({ text: newText.trim() });
+                    }
+                }
+
+                saveChatSessionsToStorage();
+                displayCurrentChatHistory();
+            }
+
+            /**
+             * Cancels the message editing and reverts to original content.
+             * @param {number} indexToCancel - The index of the message in chatHistory where editing was cancelled.
+             * @param {HTMLElement} textareaElement - The textarea element to remove.
+             */
+            function cancelEditMessage(indexToCancel, textareaElement) {
+                displayCurrentChatHistory();
+            }
+
+            /**
+             * Regenerates an AI response based on the preceding user message.
+             * @param {number} aiMessageIndex - The index of the AI message to regenerate.
+             */
+            async function regenerateResponse(aiMessageIndex) {
+                if (aiMessageIndex <= 0 || chatHistory[aiMessageIndex].role !== 'model') {
+                    displayErrorMessage("Cannot regenerate this message.");
+                    return;
+                }
+
+                const userPromptMessage = chatHistory[aiMessageIndex - 1];
+                if (userPromptMessage.role !== 'user') {
+                    displayErrorMessage("Cannot regenerate: preceding message is not a user prompt.");
+                    return;
+                }
+
+                const aiMessageObject = chatHistory[aiMessageIndex];
+
+                let chatHistoryForApi = chatHistory.slice(0, aiMessageIndex);
+                const currentChat = chatSessions[currentChatId];
+                const promptInfo = currentChat ? currentChat.promptInfo : '';
+                if (promptInfo) {
+                    chatHistoryForApi.unshift({ role: "system", parts: [{ text: promptInfo }] });
+                }
+                const selectedModelForChat = currentChat ? currentChat.selectedModel : defaultGeminiModelId;
+
+                setInterfaceEnabled(false);
+                loadingIndicator.classList.remove('hidden');
+                loadingIndicator.textContent = "AI is thinking";
+
+                try {
+                    const textApiUrl = `${API_BASE_URL}${selectedModelForChat}:generateContent?key=${geminiApiKey}`;
+                    const payload = { contents: formatChatHistoryForApi(chatHistoryForApi) };
+
+                    payload.generationConfig = { temperature: 0.9 };
+
+                    const textResponse = await fetch(textApiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!textResponse.ok) {
+                        const errorData = await textResponse.json();
+                        let detailedError = `Text AI Error: ${textResponse.status}`;
+                        if (errorData && errorData.error && errorData.error.message) detailedError += ` - ${errorData.error.message}`;
+                        throw new Error(detailedError);
+                    }
+
+                    const textResult = await textResponse.json();
+                    let aiResponseText = "Sorry, I couldn't get a text response.";
+                    if (textResult.candidates && textResult.candidates[0]?.content?.parts?.[0]?.text) {
+                        aiResponseText = textResult.candidates[0].content.parts[0].text;
+                    } else if (textResult.promptFeedback?.blockReason) {
+                        aiResponseText = `Text response blocked: ${textResult.promptFeedback.blockReason}.`;
+                    }
+
+                    let generatedImageForDisplay = null;
+                    let generatedImageForHistory = null;
+                    const originalUserMessageText = userPromptMessage.parts.find(p => p.text)?.text || '';
+
+                    if (isImageGenerationEnabled && originalUserMessageText) {
+                        loadingIndicator.textContent = "AI is generating image";
+                        try {
+                            const imagePayload = { instances: { prompt: originalUserMessageText }, parameters: { "sampleCount": 1} };
+                            const imageApiUrl = `${API_BASE_URL}${IMAGEN_MODEL_ID}:predict?key=${geminiApiKey}`;
+
+                            const imageResponse = await fetch(imageApiUrl, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(imagePayload)
+                            });
+
+                            if (!imageResponse.ok) {
+                                const errorData = await imageResponse.json();
+                                throw new Error(`Image API Error: ${imageResponse.status} - ${errorData.error?.message || 'Unknown error'}`);
+                            }
+
+                            const imageResult = await imageResponse.json();
+                            if (imageResult.predictions && imageResult.predictions.length > 0 && imageResult.predictions[0].bytesBase64Encoded) {
+                                const imageUrl = `data:image/png;base64,${imageResult.predictions[0].bytesBase64Encoded}`;
+                                generatedImageForDisplay = { data: imageUrl, mimeType: "image/png", name: "Generated Image" };
+                                generatedImageForHistory = { inlineData: { mimeType: "image/png", data: imageResult.predictions[0].bytesBase64Encoded } };
+                            } else {
+                                console.warn("No image generated or unexpected image response structure.");
+                            }
+                        } catch (imageError) {
+                            console.error("Error generating image:", imageError);
+                            displayErrorMessage(`Image generation failed: ${imageError.message}`);
+                        }
+                    }
+
+                    const newAiResponseParts = [{ text: aiResponseText }];
+                    if (generatedImageForHistory) {
+                        newAiResponseParts.push(generatedImageForHistory);
+                    }
+
+                    if (!aiMessageObject.generations) {
+                        aiMessageObject.generations = [];
+                    }
+                    aiMessageObject.generations.push({ parts: newAiResponseParts });
+                    aiMessageObject.currentGenerationIndex = aiMessageObject.generations.length - 1;
+
+                    saveChatSessionsToStorage();
+                    displayCurrentChatHistory();
+                    speakText(aiResponseText);
+
+                } catch (error) {
+                    const errorMessageText = `Error: ${error.message || "Could not connect to AI."}`;
+                    displayErrorMessage(errorMessageText);
+                } finally {
+                    setInterfaceEnabled(true);
+                    loadingIndicator.classList.add('hidden');
+                    loadingIndicator.textContent = "AI is thinking";
+                    messageInput.focus();
+                    renderChatList();
+                    hideConfirmationModal();
+                }
+            }
+
+            /**
+             * Switches the displayed generation for a specific AI message.
+             * @param {number} messageIndex - The index of the AI message in chatHistory.
+             * @param {number} newGenIndex - The index of the generation to display.
+             */
+            function switchGeneration(messageIndex, newGenIndex) {
+                const messageObj = chatHistory[messageIndex];
+                if (!messageObj || messageObj.role !== 'model' || !messageObj.generations || newGenIndex < 0 || newGenIndex >= messageObj.generations.length) {
+                    console.error("Invalid attempt to switch generation.");
+                    return;
+                }
+
+                messageObj.currentGenerationIndex = newGenIndex;
+                saveChatSessionsToStorage();
+                displayCurrentChatHistory();
+            }
+
+            /**
+             * Deletes a specific message from the current chat history.
+             * This function is called after confirmation from the custom modal.
+             * @param {number} indexToDelete - The index of the message to delete.
+             */
+            function deleteMessageConfirmed(indexToDelete) {
+                if (indexToDelete >= 0 && indexToDelete < chatHistory.length) {
+                    chatHistory.splice(indexToDelete, 1);
+                    saveChatSessionsToStorage();
+                    displayCurrentChatHistory();
+                }
+                hideConfirmationModal();
+            }
+
+            // --- Custom Confirmation Modal Functions ---
+            let confirmCallback = null;
+
+            /**
+             * Displays the custom confirmation modal.
+             * @param {string} title - The title for the confirmation modal.
+             * @param {string} message - The message to display in the confirmation modal.
+             * @param {Function} onConfirm - The callback function to execute if the user confirms.
+             */
+            function showConfirmationModal(title, message, onConfirm) {
+                confirmationTitle.textContent = title;
+                confirmationMessage.textContent = message;
+                confirmCallback = onConfirm;
+                confirmationModal.style.display = 'flex';
+            }
+
+            /**
+             * Hides the custom confirmation modal.
+             */
+            function hideConfirmationModal() {
+                confirmationModal.style.display = 'none';
+                confirmCallback = null;
+            }
+
+            // --- Custom Message/Alert Modal Functions ---
+            /**
+             * Displays a custom message modal (replaces alert()).
+             * @param {string} title - The title for the message modal.
+             * @param {string} message - The message content to display.
+             */
+            function showMessageModal(title, message) {
+                messageModalTitle.textContent = title;
+                messageModalContent.textContent = message;
+                messageModal.style.display = 'flex';
+            }
+
+            /**
+             * Hides the custom message modal.
+             */
+            function hideMessageModal() {
+                messageModal.style.display = 'none';
+            }
+
+
+            // --- Speech Recognition Control ---
+            /**
+             * Starts the speech recognition process.
+             */
+            function startRecording() {
+                if (!recognition || !micButton) return;
+                if (isRecording) return;
+
+                try {
+                    isRecording = true;
+                    recognition.start();
+                    micIconIdle.classList.add('hidden');
+                    micIconActive.classList.remove('hidden');
+                    micButton.classList.add('mic-active');
+                    setInterfaceEnabled(false); // Disable other inputs/buttons
+                    messageInput.placeholder = "Listening...";
+                } catch (e) {
+                    isRecording = false;
+                    if (e.name === 'InvalidStateError') displayErrorMessage("Mic busy or already started.");
+                    else displayErrorMessage("Could not start microphone.");
+                    micIconIdle.classList.remove('hidden');
+                    micIconActive.classList.add('hidden');
+                    micButton.classList.remove('mic-active');
+                    setInterfaceEnabled(true); // Re-enable other inputs/buttons
+                    messageInput.placeholder = "Type or say your message...";
+                }
+            }
+
+            /**
+             * Stops the speech recognition process.
+             */
+            function stopRecording() {
+                if (!recognition || !micButton) return;
+                if (!isRecording) return;
+
+                recognition.stop();
+                isRecording = false;
+                micIconIdle.classList.remove('hidden');
+                micIconActive.classList.add('hidden');
+                micButton.classList.remove('mic-active');
+                setInterfaceEnabled(true); // Re-enable other inputs/buttons
+                messageInput.placeholder = "Type or say your message...";
+            }
+            
+
+            // --- Settings Modal Functions ---
+            /**
+             * Opens the settings modal.
+             */
+            async function openSettingsModal() {
+                apiKeyInput.value = geminiApiKey; // Load in-memory key
+                storeApiKeyCheckbox.checked = storeApiKeyInLocalStorage; // Set checkbox state
+
+                if (toggleUploadButton) toggleUploadButton.checked = showUploadButton;
+                if (toggleShareScreenButton) toggleShareScreenButton.checked = showShareScreenButton;
+                if (toggleImageGenButton) toggleImageGenButton.checked = showImageGenButton;
+                if (toggleDeepResearchButton) toggleDeepResearchButton.checked = showDeepResearchButton;
+                if (toggleCanvasButton) toggleCanvasButton.checked = showCanvasButton;
+                if (toggleMicButton) toggleMicButton.checked = showMicButton;
+                if (toggleSpeakerButton) toggleSpeakerButton.checked = showSpeakerButton;
+                if (toggleThinkingButton) toggleThinkingButton.checked = showThinkingButton;
+
+                await fetchAvailableModels();
+                populateDefaultModelSelectDropdown();
+
+                settingsModal.style.display = 'flex';
+                updateApiKeyStatus(); // Ensure status is updated based on current state
+            }
+
+            /**
+             * Closes the settings modal.
+             */
+            function closeSettingsModal() {
+                settingsModal.style.display = 'none';
+            }
+
+            /**
+             * Saves the entered API key (in memory or local storage) and feature visibility settings.
+             */
+            function saveSettings() {
+                const newApiKey = apiKeyInput.value.trim();
+                storeApiKeyInLocalStorage = storeApiKeyCheckbox.checked; // Get new preference
+                localStorage.setItem('storeApiKeyInLocalStorage', storeApiKeyInLocalStorage); // Save the preference itself
+
+                if (newApiKey) {
+                    geminiApiKey = newApiKey; // Always update in-memory key
+                    if (storeApiKeyInLocalStorage) {
+                        localStorage.setItem('geminiApiKey', geminiApiKey);
+                        apiKeyStatus.textContent = 'API Key stored in browser.';
+                    } else {
+                        localStorage.removeItem('geminiApiKey'); // Ensure it's removed if user unchecked
+                        apiKeyStatus.textContent = 'API Key set for this session (not stored).';
+                    }
+                    apiKeyStatus.classList.remove('text-red-500', 'dark:text-red-400');
+                    apiKeyStatus.classList.add('text-green-600', 'dark:text-green-500');
+                    clearErrorMessage();
+                    addMessageToChat(`API Key ${storeApiKeyInLocalStorage ? 'saved to browser' : 'set for this session'}.`, 'system');
+                } else {
+                    geminiApiKey = ''; // Clear in-memory key if empty input
+                    localStorage.removeItem('geminiApiKey'); // Always remove from storage if empty
+                    apiKeyStatus.textContent = 'API Key is not set.';
+                    apiKeyStatus.classList.remove('text-green-600', 'dark:text-green-500');
+                    apiKeyStatus.classList.add('text-red-500', 'dark:text-red-400');
+                }
+
+                defaultGeminiModelId = defaultAiModelSelect.value;
+                localStorage.setItem('defaultGeminiModelId', defaultGeminiModelId);
+
+                showUploadButton = toggleUploadButton.checked;
+                localStorage.setItem('showUploadButton', showUploadButton);
+
+                showShareScreenButton = toggleShareScreenButton.checked;
+                localStorage.setItem('showShareScreenButton', showShareScreenButton);
+
+                showImageGenButton = toggleImageGenButton.checked;
+                localStorage.setItem('showImageGenButton', showImageGenButton);
+
+                showDeepResearchButton = toggleDeepResearchButton.checked;
+                localStorage.setItem('showDeepResearchButton', showDeepResearchButton);
+
+                showCanvasButton = toggleCanvasButton.checked;
+                localStorage.setItem('showCanvasButton', showCanvasButton);
+
+                showMicButton = toggleMicButton.checked;
+                localStorage.setItem('showMicButton', showMicButton);
+
+                showSpeakerButton = toggleSpeakerButton.checked;
+                localStorage.setItem('showSpeakerButton', showSpeakerButton);
+
+                showThinkingButton = toggleThinkingButton.checked;
+                localStorage.setItem('showThinkingButton', showThinkingButton);
+
+                updateButtonVisibilityUI();
+                setInterfaceEnabled(true); // Re-evaluate button states
+                displayCurrentChatHistory();
+                closeSettingsModal();
+            }
+            
+            /**
+             * Updates the API key status message in the settings modal.
+             */
+            function updateApiKeyStatus() {
+                if (geminiApiKey) {
+                    if (storeApiKeyInLocalStorage) {
+                        apiKeyStatus.textContent = 'API Key is stored in browser.';
+                    } else {
+                        apiKeyStatus.textContent = 'API Key is set for this session (not stored).';
+                    }
+                    apiKeyStatus.classList.remove('text-red-500', 'dark:text-red-400');
+                    apiKeyStatus.classList.add('text-green-600', 'dark:text-green-500');
+                } else {
+                    apiKeyStatus.textContent = 'API Key is not set.';
+                    apiKeyStatus.classList.remove('text-green-600', 'dark:text-green-500');
+                    apiKeyStatus.classList.add('text-red-500', 'dark:text-red-400');
+                }
+            }
+
+            // --- Chat Session Management ---
+
+            /**
+             * Generates a unique ID for a new chat session.
+             * @returns {string} A unique ID.
+             */
+            function generateUniqueId() {
+                return Date.now().toString(36) + Math.random().toString(36).substring(2);
+            }
+
+            /**
+             * Saves all chat sessions to local storage.
+             */
+            function saveChatSessionsToStorage() {
+                try {
+                    localStorage.setItem('geminiChatSessions', JSON.stringify(chatSessions));
+                    localStorage.setItem('currentChatId', currentChatId);
+                } catch (e) {
+                    console.warn("Could not save chat sessions:", e);
+                }
+            }
+
+            /**
+             * Loads all chat sessions from local storage.
+             */
+            function loadChatSessionsFromStorage() {
+                const storedSessions = localStorage.getItem('geminiChatSessions');
+                if (storedSessions) {
+                    try {
+                        const parsedSessions = JSON.parse(storedSessions);
+                        if (typeof parsedSessions === 'object' && parsedSessions !== null) {
+                            for (const id in parsedSessions) {
+                                const session = parsedSessions[id];
+                                if (Array.isArray(session)) {
+                                    chatSessions[id] = { history: [], name: `Chat ${Object.keys(chatSessions).length + 1}`, profilePicture: '', promptInfo: '', selectedModel: DEFAULT_GEMINI_MODEL_ID };
+                                    session.forEach(msg => {
+                                        if (msg.role === 'model' && !msg.generations) {
+                                            chatSessions[id].history.push({
+                                                role: 'model',
+                                                generations: [{ parts: msg.parts }],
+                                                currentGenerationIndex: 0
+                                            });
+                                        } else {
+                                            chatSessions[id].history.push(msg);
+                                        }
+                                    });
+                                } else {
+                                    chatSessions[id] = session;
+                                    if (!chatSessions[id].name) {
+                                        chatSessions[id].name = `Chat ${Object.keys(chatSessions).length + 1}`;
+                                    }
+                                    if (!chatSessions[id].profilePicture) {
+                                        chatSessions[id].profilePicture = '';
+                                    }
+                                    if (!chatSessions[id].promptInfo) {
+                                        chatSessions[id].promptInfo = '';
+                                    }
+                                    if (!chatSessions[id].selectedModel) {
+                                        chatSessions[id].selectedModel = DEFAULT_GEMINI_MODEL_ID;
+                                    }
+                                    chatSessions[id].history = chatSessions[id].history.map(msg => {
+                                        if (msg.role === 'model' && !msg.generations) {
+                                            return {
+                                                role: 'model',
+                                                generations: [{ parts: msg.parts }],
+                                                currentGenerationIndex: 0
+                                            };
+                                        }
+                                        if (msg.role === 'model' && msg.generations && msg.currentGenerationIndex === undefined) {
+                                            msg.currentGenerationIndex = 0;
+                                        }
+                                        return msg;
+                                    });
+                                }
+                            }
+                        } else {
+                            localStorage.removeItem('geminiChatSessions');
+                            chatSessions = {};
+                        }
+                    } catch (e) {
+                        console.error("Error parsing stored chat sessions:", e);
+                        localStorage.removeItem('geminiChatSessions');
+                        chatSessions = {};
+                    }
+                }
+
+                if (Object.keys(chatSessions).length === 0) {
+                    startNewChat(false, true);
+                } else {
+                    currentChatId = localStorage.getItem('currentChatId') || Object.keys(chatSessions)[0];
+                    if (!chatSessions[currentChatId]) {
+                        currentChatId = Object.keys(chatSessions)[0];
+                    }
+                    chatHistory = chatSessions[currentChatId].history || [];
+                }
+                renderChatList();
+            }
+
+            /**
+             * Displays the messages of the current chat history in the chat messages area.
+             */
+            function displayCurrentChatHistory() {
+                chatMessages.innerHTML = '';
+                chatHistory.forEach((item, index) => {
+                    let messageText = '';
+                    const filesToDisplay = [];
+                    let totalGenerations = 1;
+                    let currentGenIndex = 0;
+
+                    if (item.role === 'model') {
+                        totalGenerations = item.generations ? item.generations.length : 1;
+                        currentGenIndex = item.currentGenerationIndex !== undefined ? item.currentGenerationIndex : 0;
+                        const partsToDisplay = item.generations?.[currentGenIndex]?.parts || [{ text: "No content available." }];
+                        partsToDisplay.forEach(part => {
+                            if (part.text) {
+                                messageText += part.text;
+                            } else if (part.inlineData) {
+                                filesToDisplay.push({
+                                    data: `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`,
+                                    mimeType: part.inlineData.mimeType,
+                                    name: part.inlineData.name || `file.${part.inlineData.mimeType.split('/')[1]}`
+                                });
+                            }
+                        });
+                    } else {
+                        item.parts.forEach(part => {
+                            if (part.text) {
+                                messageText += part.text;
+                            } else if (part.inlineData) {
+                                filesToDisplay.push({
+                                    data: `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`,
+                                    mimeType: part.inlineData.mimeType,
+                                    name: part.inlineData.name || `file.${part.inlineData.mimeType.split('/')[1]}`
+                                });
+                            }
+                        });
+                    }
+                    addMessageToChat(messageText, item.role === 'user' ? 'user' : 'ai', false, filesToDisplay, index, totalGenerations, currentGenIndex);
+                });
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+
+
+            /**
+             * Renders (or re-renders) the list of chat sessions in the sidebar.
+             */
+            function renderChatList() {
+                chatListContainer.innerHTML = '';
+                const chatIds = Object.keys(chatSessions).sort((a, b) => {
+                    return parseInt(a.substring(0, a.indexOf('.')), 36) - parseInt(b.substring(0, b.indexOf('.')), 36);
+                });
+
+                if (chatIds.length === 0) {
+                    startNewChat(false, true);
+                    return;
+                }
+
+                chatIds.forEach((chatId, index) => {
+                    const chatItem = document.createElement('div');
+                    chatItem.classList.add(
+                        'chat-list-item',
+                        'flex', 'items-center', 'justify-between', 'p-3', 'rounded-lg', 'cursor-pointer',
+                        'hover:bg-slate-200', 'dark:hover:bg-slate-700', 'transition-colors', 'duration-150',
+                        'text-slate-700', 'dark:text-slate-200'
+                    );
+                    if (chatId === currentChatId) {
+                        chatItem.classList.add('active');
+                    }
+                    if (isChatSidebarCollapsed) {
+                        chatItem.classList.add('collapsed');
+                    }
+                    chatItem.dataset.chatId = chatId;
+
+                    let chatName = chatSessions[chatId].name;
+                    const history = chatSessions[chatId].history;
+
+                    if (!chatName || chatName.startsWith('Chat ')) {
+                        if (history && history.length > 0) {
+                            let candidateMessage = null;
+                            for (let i = 0; i < history.length; i++) {
+                                const msg = history[i];
+                                const textPart = msg.role === 'user' 
+                                    ? msg.parts.find(part => part.text) 
+                                    : msg.generations?.[0]?.parts.find(part => part.text);
+
+                                if (textPart && textPart.text) {
+                                    const lowerText = textPart.text.toLowerCase();
+                                    if (msg.role === 'system' && (lowerText.includes("welcome!") || lowerText.includes("api key set for this session."))) {
+                                        continue; 
+                                    }
+                                    if (lowerText.trim() !== '' && !lowerText.startsWith("thinking...")) {
+                                        candidateMessage = textPart.text;
+                                        break;
+                                    }
+                                }
+                            }
+
+                            if (candidateMessage) {
+                                chatName = candidateMessage.substring(0, 30) + (candidateMessage.length > 30 ? '...' : '');
+                            } else {
+                                chatName = `Chat ${index + 1}`;
+                            }
+                        } else {
+                            chatName = `Chat ${index + 1}`;
+                        }
+                        chatSessions[chatId].name = chatName;
+                    }
+                    
+                    const chatNameSpan = document.createElement('span');
+                    chatNameSpan.classList.add('chat-name-span', 'flex-1', 'truncate');
+                    chatNameSpan.textContent = chatName;
+
+                    const chatProfilePic = document.createElement('img');
+                    chatProfilePic.classList.add('chat-profile-pic', 'w-8', 'h-8', 'rounded-full', 'object-cover', 'mr-2', 'flex-shrink-0');
+                    chatProfilePic.src = chatSessions[chatId].profilePicture || DEFAULT_AI_PROFILE_SVG;
+                    chatProfilePic.alt = 'Chat Profile';
+
+
+                    const buttonsContainer = document.createElement('div');
+                    buttonsContainer.classList.add('chat-buttons-container', 'flex', 'items-center', 'space-x-1', 'ml-2');
+
+                    // Customize button
+                    const customizeButton = document.createElement('button');
+                    customizeButton.innerHTML = `
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-slate-400 hover:text-blue-500 dark:hover:text-blue-400">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14.25v4.5a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 18V7.5a2.25 2.25 0 0 1 2.25-2.25h4.5" />
+                        </svg>
+                    `;
+                    customizeButton.classList.add('w-6', 'h-6', 'p-1', 'rounded-full', 'hover:bg-slate-300', 'dark:hover:bg-slate-600', 'focus:outline-none', 'focus:ring-2', 'focus:ring-blue-500', 'flex', 'items-center', 'justify-content-center');
+                    customizeButton.title = "Customize Chat";
+                    customizeButton.ariaLabel = "Customize Chat";
+                    customizeButton.addEventListener('click', (event) => {
+                        event.stopPropagation();
+                        openCustomizeChatModal(chatId);
+                    });
+                    buttonsContainer.appendChild(customizeButton);
+
+                    // Download Chat Button
+                    const downloadButton = document.createElement('button');
+                    downloadButton.innerHTML = `
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-slate-400 hover:text-green-500 dark:hover:text-green-400">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                        </svg>
+                    `;
+                    downloadButton.classList.add('w-6', 'h-6', 'p-1', 'rounded-full', 'hover:bg-slate-300', 'dark:hover:bg-slate-600', 'focus:outline-none', 'focus:ring-2', 'focus:ring-green-500', 'flex', 'items-center', 'justify-content-center');
+                    downloadButton.title = "Download Chat";
+                    downloadButton.ariaLabel = "Download Chat";
+                    downloadButton.addEventListener('click', (event) => {
+                        event.stopPropagation();
+                        showConfirmationModal('Download Chat', 'Are you sure you want to download this chat history?', () => downloadChat(chatId));
+                    });
+                    buttonsContainer.appendChild(downloadButton);
+
+                    // Delete button
+                    const deleteButton = document.createElement('button');
+                    deleteButton.innerHTML = `<span class="text-base leading-none text-slate-400 hover:text-red-500 dark:hover:text-red-400">&times;</span>`;
+                    deleteButton.classList.add('w-6', 'h-6', 'p-1', 'rounded-full', 'hover:bg-slate-300', 'dark:hover:bg-slate-600', 'focus:outline-none', 'focus:ring-2', 'focus:ring-red-500', 'flex', 'items-center', 'justify-content-center');
+                    deleteButton.title = "Delete Chat";
+                    deleteButton.ariaLabel = "Delete Chat";
+                    deleteButton.addEventListener('click', (event) => {
+                        event.stopPropagation();
+                        showConfirmationModal('Delete Chat', 'Are you sure you want to delete this chat?', () => deleteChatConfirmed(chatId));
+                    });
+                    buttonsContainer.appendChild(deleteButton);
+
+                    chatItem.appendChild(chatProfilePic);
+                    chatItem.appendChild(chatNameSpan);
+                    chatItem.appendChild(buttonsContainer);
+                    chatItem.addEventListener('click', () => switchChat(chatId));
+                    chatListContainer.appendChild(chatItem);
+                });
+            }
+
+            /**
+             * Starts a new chat session.
+             * @param {boolean} [savePrevious=true] - Whether to save the current chat before starting a new one.
+             * @param {boolean} [openCustomizeModal=false] - Whether to open the customize modal immediately after creating.
+             */
+            function startNewChat(savePrevious = true, openCustomizeModalAfterCreation = false) {
+                if (savePrevious && currentChatId && chatSessions[currentChatId]) {
+                    chatSessions[currentChatId].history = chatHistory;
+                }
+
+                const newId = generateUniqueId();
+                const newChatName = `Chat ${Object.keys(chatSessions).length + 1}`;
+                chatSessions[newId] = { history: [], name: newChatName, profilePicture: '', promptInfo: '', selectedModel: defaultGeminiModelId }; 
+                currentChatId = newId; 
+                chatHistory = chatSessions[currentChatId].history;
+
+                saveChatSessionsToStorage();
+                displayCurrentChatHistory();
+                if (!geminiApiKey) {
+                     addMessageToChat("Welcome! Please set your Gemini API Key in the settings to start chatting. You can choose to store it for convenience.", 'system');
+                } else {
+                     addMessageToChat("Welcome! How can I help you today?", 'system');
+                }
+                messageInput.value = '';
+                messageInput.style.height = 'auto'; // Reset textarea height
+                messageInput.focus();
+                selectedFiles = [];
+                uploadedFilesPreview.innerHTML = '';
+                uploadedFilesPreview.classList.add('hidden');
+                renderChatList();
+                updateCurrentModelDisplay();
+
+                if (openCustomizeModalAfterCreation) {
+                    openCustomizeChatModal(newId);
+                }
+            }
+
+            /**
+             * Switches the current chat session to the specified chatId.
+             * @param {string} chatId - The ID of the chat session to switch to.
+             */
+            function switchChat(chatId) {
+                if (chatId === currentChatId) return;
+
+                if (currentChatId && chatSessions[currentChatId]) {
+                    chatSessions[currentChatId].history = chatHistory;
+                }
+
+                currentChatId = chatId;
+                chatHistory = chatSessions[currentChatId].history;
+                saveChatSessionsToStorage();
+
+                displayCurrentChatHistory();
+                renderChatList();
+                messageInput.focus();
+                selectedFiles = [];
+                uploadedFilesPreview.innerHTML = '';
+                uploadedFilesPreview.classList.add('hidden');
+                updateCurrentModelDisplay();
+            }
+
+            /**
+             * Deletes a chat session by its ID.
+             * This function is called after confirmation from the custom modal.
+             * @param {string} chatIdToDelete - The ID of the chat session to delete.
+             */
+            function deleteChatConfirmed(chatIdToDelete) {
+                delete chatSessions[chatIdToDelete];
+                saveChatSessionsToStorage();
+
+                if (chatIdToDelete === currentChatId) {
+                    const remainingChatIds = Object.keys(chatSessions);
+                    if (remainingChatIds.length > 0) {
+                        switchChat(remainingChatIds[0]);
+                    } else {
+                        startNewChat(false, true);
+                    }
+                }
+                renderChatList();
+                hideConfirmationModal();
+            }
+
+            /**
+             * Downloads the current chat history as a JSON file.
+             * @param {string} chatId - The ID of the chat to download.
+             */
+            function downloadChat(chatId) {
+                const chatToDownload = chatSessions[chatId];
+                if (!chatToDownload) {
+                    showMessageModal('Error', 'Chat not found.');
+                    hideConfirmationModal();
+                    return;
+                }
+
+                const chatName = chatToDownload.name || `chat-${chatId}`;
+                const filename = `${chatName.replace(/[^a-zA-Z0-9]/g, '_')}_history.json`;
+
+                // Create a copy of the chat object to ensure all properties (like generations) are included
+                const chatData = JSON.parse(JSON.stringify(chatToDownload)); 
+
+                const jsonString = JSON.stringify(chatData, null, 2); // Pretty-print JSON
+                const blob = new Blob([jsonString], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a); // Append to body to make it clickable
+                a.click(); // Trigger the download
+                document.body.removeChild(a); // Clean up
+                URL.revokeObjectURL(url); // Release the object URL
+
+                showMessageModal('Download Complete', `Chat history "${filename}" downloaded successfully.`);
+                hideConfirmationModal();
+            }
+
+            // --- File Upload Functions ---
+            /**
+             * Handles the selection of files from the file input.
+             * @param {Event} event - The change event from the file input.
+             */
+            function handleFileSelection(event) {
+                selectedFiles = [];
+                uploadedFilesPreview.innerHTML = '';
+                uploadedFilesPreview.classList.add('hidden');
+
+                const files = event.target.files;
+                if (files.length === 0) return;
+
+                const file = files[0];
+
+                if (file.size > MAX_FILE_SIZE_BYTES) {
+                    displayErrorMessage(`File size exceeds the limit of ${MAX_FILE_SIZE_BYTES / (1024 * 1024)}MB.`);
+                    fileInput.value = '';
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const fullDataUrl = e.target.result; 
+                    selectedFiles.push({
+                        data: fullDataUrl,
+                        mimeType: file.type,
+                        name: file.name
+                    });
+                    displaySelectedFiles();
+                };
+                reader.onerror = (error) => {
+                    console.error("Error reading file:", error);
+                    displayErrorMessage("Failed to read file.");
+                };
+                reader.readAsDataURL(file);
+            }
+
+            /**
+             * Displays the selected files as previews in the UI.
+             */
+            function displaySelectedFiles() {
+                uploadedFilesPreview.innerHTML = '';
+                if (selectedFiles.length > 0) {
+                    uploadedFilesPreview.classList.remove('hidden');
+                    selectedFiles.forEach((file, index) => {
+                        const previewItem = document.createElement('div');
+                        previewItem.classList.add('relative', 'rounded-md', 'overflow-hidden', 'shadow-md', 'p-2', 'flex', 'items-center', 'space-x-2', 'bg-slate-200', 'dark:bg-slate-700', 'text-slate-800', 'dark:text-slate-200');
+
+                        if (file.mimeType.startsWith('image/')) {
+                            const img = document.createElement('img');
+                            img.src = file.data; 
+                            img.alt = `Preview ${file.name}`;
+                            img.classList.add('w-16', 'h-16', 'object-cover', 'rounded-md');
+                            previewItem.appendChild(img);
+                        } else {
+                            const fileIcon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+                            fileIcon.setAttribute("viewBox", "0 0 24 24");
+                            fileIcon.setAttribute("fill", "currentColor");
+                            fileIcon.classList.add("w-8", "h-8", "text-slate-500", "dark:text-slate-400");
+                            
+                            let pathD = '';
+                            if (file.mimeType.includes('pdf')) {
+                                pathD = `M19.5 21a3 3 0 0 0 3-3V9a1.5 1.5 0 0 0-1.5-1.5H15V2.25A2.25 2.25 0 0 0 12.75 0h-3a2.25 2.25 0 0 0-2.25 2.25V7.5H4.5A1.5 1.5 0 0 0 3 9v9a3 3 0 0 0 3 3h13.5Zm-9-15a.75.75 0 0 0-1.5 0v4.5a.75.75 0 0 0 1.5 0v-4.5Zm3 0a.75.75 0 0 0-1.5 0v4.5a.75.75 0 0 0 1.5 0v-4.5Zm3 0a.75.75 0 0 0-1.5 0v4.5a.75.75 0 0 0 1.5 0v-4.5Z`;
+                            } else if (file.mimeType.includes('wordprocessingml') || file.mimeType.includes('msword')) {
+                                pathD = `M19.5 21a3 3 0 0 0 3-3V9a1.5 1.5 0 0 0-1.5-1.5h-8.75a.75.75 0 0 1-.75-.75V3a1.5 1.5 0 0 0-1.5-1.5H5.25A3 3 0 0 0 2.25 3v15a3 3 0 0 0 3 3h13.5Zm-10.5-9.75a.75.75 0 0 0-1.5 0v4.5a.75.75 0 0 0 1.5 0v-4.5ZM11.25 12a.75.75 0 0 0-1.5 0v4.5a.75.75 0 0 0 1.5 0v-4.5ZM14.25 12a.75.75 0 0 0-1.5 0v4.5a.75.75 0 0 0 1.5 0v-4.5Z`;
+                            } else if (file.mimeType.includes('text/') || file.mimeType.includes('json') || file.mimeType.includes('csv') || file.mimeType.includes('html')) {
+                                pathD = `M1.5 6.75a3 3 0 0 1 3-3h9.75a3 3 0 0 1 3 3v7.5a3 3 0 0 1-3 3H4.5a3 3 0 0 1-3-3V6.75ZM16.03 3.22a.75.75 0 0 1 0 1.06l-1.59 1.59a.75.75 0 0 1-1.06 0L12 4.31l-1.38 1.38a.75.75 0 0 1-1.06 0L8 4.31l-1.38 1.38a.75.75 0 0 1-1.06 0L4 4.31V6.75a.75.75 0 0 0 .75.75h13.5a.75.75 0 0 0 .75-.75V4.31l-1.38-1.38Zm-1.5 9a.75.75 0 0 0 0 1.5h-.75a.75.75 0 0 0 0 1.5h.75a.75.75 0 0 0 0 1.5H9.75a.75.75 0 0 0 0-1.5h.75a.75.75 0 0 0 0-1.5h-.75a.75.75 0 0 0 0-1.5h4.5Z`;
+                            } else {
+                                pathD = `M1.5 6.75a3 3 0 0 1 3-3h9.75a3 3 0 0 1 3 3v7.5a3 3 0 0 1-3 3H4.5a3 3 0 0 1-3-3V6.75ZM16.03 3.22a.75.75 0 0 1 0 1.06l-1.59 1.59a.75.75 0 0 1-1.06 0L12 4.31l-1.38 1.38a.75.75 0 0 1-1.06 0L8 4.31l-1.38 1.38a.75.75 0 0 1-1.06 0L4 4.31V6.75a.75.75 0 0 0 .75.75h13.5a.75.75 0 0 0 .75-.75V4.31l-1.38-1.38Zm-1.5 9a.75.75 0 0 0 0 1.5h-.75a.75.75 0 0 0 0 1.5h.75a.75.75 0 0 0 0 1.5H9.75a.75.75 0 0 0 0-1.5h.75a.75.75 0 0 0 0-1.5h-.75a.75.75 0 0 0 0-1.5h4.5Z`;
+                            }
+                            const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                            path.setAttribute("fill-rule", "evenodd");
+                            path.setAttribute("d", pathD);
+                            path.setAttribute("clip-rule", "evenodd");
+                            fileIcon.appendChild(path);
+                            previewItem.appendChild(fileIcon);
+                        }
+
+                        const fileNameSpan = document.createElement('span');
+                        fileNameSpan.textContent = file.name;
+                        fileNameSpan.classList.add('flex-1', 'truncate');
+
+                        const removeButton = document.createElement('button');
+                        removeButton.classList.add(
+                            'absolute', 'top-1', 'right-1', 'bg-red-500', 'text-white', 'rounded-full',
+                            'w-6', 'h-6', 'flex', 'items-center', 'justify-center', 'text-xs', 'font-bold',
+                            'hover:bg-red-600', 'focus:outline-none', 'focus:ring-2', 'focus:ring-red-400'
+                        );
+                        removeButton.textContent = 'X';
+                        removeButton.title = 'Remove file';
+                        removeButton.ariaLabel = 'Remove file';
+                        removeButton.addEventListener('click', () => removeFile(index));
+
+                        previewItem.appendChild(fileNameSpan);
+                        previewItem.appendChild(removeButton);
+                        uploadedFilesPreview.appendChild(previewItem);
+                    });
+                } else {
+                    uploadedFilesPreview.classList.add('hidden');
+                }
+            }
+
+            /**
+             * Removes a file from the selectedFiles array and updates the preview.
+             * @param {number} index - The index of the file to remove.
+             */
+            function removeFile(index) {
+                selectedFiles.splice(index, 1);
+                fileInput.value = '';
+                displaySelectedFiles();
+            }
+
+            // --- Screen Sharing Functions ---
+            /**
+             * Starts screen sharing and begins capturing frames.
+             */
+            async function startScreenSharing() {
+                if (isScreenSharingActive) return;
+
+                try {
+                    screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                    
+                    isScreenSharingActive = true;
+                    updateScreenShareButtonUI();
+                    addMessageToChat("Screen sharing started. AI will analyze frames from your screen.", 'system');
+
+                    if (!isRecording && showMicButton) {
+                        startRecording();
+                    }
+                    if (!aiVoiceEnabled && showSpeakerButton) {
+                        aiVoiceEnabled = true;
+                        localStorage.setItem('aiVoiceEnabled', aiVoiceEnabled);
+                        updateSpeakerButtonUI();
+                    }
+
+                    screenVideo.srcObject = screenStream;
+                    screenVideo.play();
+
+                    screenVideo.onloadedmetadata = () => {
+                        screenCanvas.width = screenVideo.videoWidth;
+                        screenCanvas.height = screenVideo.videoHeight;
+                    };
+
+                    screenCaptureInterval = setInterval(() => {
+                        if (screenVideo.videoWidth === 0 || screenVideo.videoHeight === 0) return;
+                        const context = screenCanvas.getContext('2d');
+                        context.drawImage(screenVideo, 0, 0, screenCanvas.width, screenCanvas.height);
+                        latestScreenBase64 = screenCanvas.toDataURL('image/jpeg');
+                    }, 5000);
+
+                    screenStream.oninactive = () => {
+                        stopScreenSharing();
+                    };
+
+                } catch (error) {
+                    isScreenSharingActive = false;
+                    updateScreenShareButtonUI();
+                    if (error.name === 'NotAllowedError') {
+                        displayErrorMessage("Screen sharing permission denied.");
+                    } else if (error.name === 'NotFoundError') {
+                        displayErrorMessage("No display source found. Please ensure you have a screen or window to share.");
+                    } else {
+                        displayErrorMessage(`Error starting screen sharing: ${error.message}`);
+                    }
+                    console.error("Error starting screen sharing:", error);
+                }
+            }
+
+            /**
+             * Stops screen sharing and clears resources.
+             */
+            function stopScreenSharing() {
+                if (!isScreenSharingActive) return;
+
+                if (screenStream) {
+                    screenStream.getTracks().forEach(track => track.stop());
+                    screenStream = null;
+                    screenVideo.srcObject = null;
+                }
+                if (screenCaptureInterval) {
+                    clearInterval(screenCaptureInterval);
+                    screenCaptureInterval = null;
+                }
+                latestScreenBase64 = null;
+                isScreenSharingActive = false;
+                updateScreenShareButtonUI();
+                addMessageToChat("Screen sharing stopped.", 'system');
+
+                if (isRecording) {
+                    stopRecording();
+                }
+                if (aiVoiceEnabled) {
+                    aiVoiceEnabled = false;
+                    localStorage.setItem('aiVoiceEnabled', aiVoiceEnabled);
+                    updateSpeakerButtonUI();
+                    if (synth.speaking) synth.cancel();
+                }
+            }
+
+            // --- Customize Chat Modal Functions ---
+            let chatToCustomizeId = null;
+
+            /**
+             * Fetches available AI models from the Gemini API and populates the dropdowns.
+             */
+            async function fetchAvailableModels() {
+                if (!geminiApiKey) {
+                    modelSelectStatus.textContent = 'API Key is required to fetch models.';
+                    modelSelectStatus.classList.remove('hidden');
+                    aiModelSelect.innerHTML = `<option value="">(No models available)</option>`;
+                    aiModelSelect.disabled = true;
+                    
+                    defaultModelSelectStatus.textContent = 'API Key is required to fetch models.';
+                    defaultModelSelectStatus.classList.remove('hidden');
+                    defaultAiModelSelect.innerHTML = `<option value="">(No models available)</option>`;
+                    defaultAiModelSelect.disabled = true;
+                    return;
+                }
+
+                if (availableAiModels.length === 0) { // Only fetch if not already fetched this session
+                    modelSelectStatus.textContent = 'Fetching models...';
+                    modelSelectStatus.classList.remove('hidden', 'text-red-500', 'dark:text-red-400');
+                    modelSelectStatus.classList.add('text-slate-500', 'dark:text-slate-400');
+                    aiModelSelect.disabled = true;
+
+                    defaultModelSelectStatus.textContent = 'Fetching models...';
+                    defaultModelSelectStatus.classList.remove('hidden', 'text-red-500', 'dark:text-red-400');
+                    defaultModelSelectStatus.classList.add('text-slate-500', 'dark:text-slate-400');
+                    defaultAiModelSelect.disabled = true;
+
+                    try {
+                        const response = await fetch(`${API_BASE_URL}?key=${geminiApiKey}`);
+                        if (!response.ok) {
+                            const errorData = await response.json();
+                            throw new Error(`Failed to fetch models: ${response.status} - ${errorData.error?.message || 'Unknown error'}`);
+                        }
+                        const data = await response.json();
+                        
+                        availableAiModels = data.models
+                            .filter(model => model.name.startsWith('models/gemini-') && model.supportedGenerationMethods.includes('generateContent'))
+                            .map(model => ({
+                                id: model.name.replace('models/', ''),
+                                displayName: model.displayName || model.name.replace('models/', '')
+                            }))
+                            .sort((a, b) => a.displayName.localeCompare(b.displayName));
+
+                        if (!localStorage.getItem('defaultGeminiModelId')) {
+                            const newestFlashModel = availableAiModels.find(model => model.id === DEFAULT_GEMINI_MODEL_ID);
+                            if (newestFlashModel) {
+                                defaultGeminiModelId = newestFlashModel.id;
+                            } else if (availableAiModels.length > 0) {
+                                defaultGeminiModelId = availableAiModels[0].id;
+                            }
+                            localStorage.setItem('defaultGeminiModelId', defaultGeminiModelId);
+                        }
+
+                        modelSelectStatus.classList.add('hidden');
+                        aiModelSelect.disabled = false;
+                        defaultModelSelectStatus.classList.add('hidden');
+                        defaultAiModelSelect.disabled = false;
+
+                    } catch (error) {
+                        console.error("Error fetching available models:", error);
+                        modelSelectStatus.textContent = `Error fetching models: ${error.message}`;
+                        modelSelectStatus.classList.remove('hidden', 'text-slate-500', 'dark:text-slate-400');
+                        modelSelectStatus.classList.add('text-red-500', 'dark:text-red-400');
+                        aiModelSelect.innerHTML = '<option value="">(Error loading models)</option>';
+                        aiModelSelect.disabled = true;
+
+                        defaultModelSelectStatus.textContent = `Error fetching models: ${error.message}`;
+                        defaultModelSelectStatus.classList.remove('hidden', 'text-slate-500', 'dark:text-slate-400');
+                        defaultModelSelectStatus.classList.add('text-red-500', 'dark:text-red-400');
+                        defaultAiModelSelect.innerHTML = '<option value="">(Error loading models)</option>';
+                        defaultAiModelSelect.disabled = true;
+                    }
+                } else {
+                    modelSelectStatus.classList.add('hidden');
+                    aiModelSelect.disabled = false;
+                    defaultModelSelectStatus.classList.add('hidden');
+                    defaultAiModelSelect.disabled = false;
+                }
+            }
+
+            /**
+             * Populates the AI model select dropdown with available models.
+             * @param {HTMLElement} selectElement - The select element to populate.
+             * @param {string} selectedValue - The value to mark as selected.
+             */
+            function populateModelDropdown(selectElement, selectedValue) {
+                selectElement.innerHTML = '';
+
+                if (availableAiModels.length === 0) {
+                    const option = document.createElement('option');
+                    option.value = '';
+                    option.textContent = '(No models available)';
+                    selectElement.appendChild(option);
+                    selectElement.disabled = true;
+                    return;
+                }
+
+                availableAiModels.forEach(model => {
+                    const option = document.createElement('option');
+                    option.value = model.id;
+                    option.textContent = model.displayName;
+                    if (model.id === selectedValue) {
+                        option.selected = true;
+                    }
+                    selectElement.appendChild(option);
+                });
+                selectElement.disabled = false;
+            }
+
+            /**
+             * Populates the AI model select dropdown in the Customize Chat modal.
+             */
+            function populateCustomizeModelSelectDropdown() {
+                const currentChat = chatSessions[chatToCustomizeId];
+                const selectedModel = currentChat ? currentChat.selectedModel : defaultGeminiModelId;
+                populateModelDropdown(aiModelSelect, selectedModel);
+            }
+
+            /**
+             * Populates the AI model select dropdown in the Settings modal.
+             */
+            function populateDefaultModelSelectDropdown() {
+                populateModelDropdown(defaultAiModelSelect, defaultGeminiModelId);
+            }
+
+            /**
+             * Opens the customize chat modal for a specific chat.
+             * @param {string} chatId The ID of the chat to customize.
+             */
+            async function openCustomizeChatModal(chatId) {
+                chatToCustomizeId = chatId;
+                const chat = chatSessions[chatId];
+
+                if (!chat) {
+                    console.error("Chat not found for customization:", chatId);
+                    return;
+                }
+
+                chatNameInput.value = chat.name || '';
+                chatPromptInfoTextarea.value = chat.promptInfo || '';
+                
+                if (chat.profilePicture) {
+                    chatProfilePicturePreview.src = chat.profilePicture;
+                    removeProfilePictureButton.classList.remove('hidden');
+                } else {
+                    chatProfilePicturePreview.src = DEFAULT_AI_PROFILE_SVG;
+                    removeProfilePictureButton.classList.add('hidden');
+                }
+
+                await fetchAvailableModels();
+                populateCustomizeModelSelectDropdown();
+                
+                customizeChatModal.style.display = 'flex';
+            }
+
+            /**
+             * Closes the customize chat modal.
+             */
+            function closeCustomizeChatModal() {
+                customizeChatModal.style.display = 'none';
+                chatToCustomizeId = null;
+                chatProfilePictureInput.value = '';
+            }
+
+            /**
+             * Saves the customized chat details.
+             */
+            function saveCustomizeChat() {
+                if (!chatToCustomizeId) return;
+
+                const chat = chatSessions[chatToCustomizeId];
+                if (!chat) return;
+
+                chat.name = chatNameInput.value.trim();
+                chat.promptInfo = chatPromptInfoTextarea.value.trim();
+                chat.selectedModel = aiModelSelect.value;
+
+                saveChatSessionsToStorage();
+                renderChatList();
+                updateCurrentModelDisplay();
+                closeCustomizeChatModal();
+            }
+
+            /**
+             * Handles selecting a profile picture for the chat.
+             * @param {Event} event The change event from the file input.
+             */
+            function handleProfilePictureSelection(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                if (!file.type.startsWith('image/')) {
+                    displayErrorMessage("Only image files are supported for profile pictures.");
+                    chatProfilePictureInput.value = '';
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    chatProfilePicturePreview.src = e.target.result;
+                    removeProfilePictureButton.classList.remove('hidden');
+                    if (chatToCustomizeId) {
+                        chatSessions[chatToCustomizeId].profilePicture = e.target.result;
+                        saveChatSessionsToStorage();
+                        renderChatList();
+                    }
+                };
+                reader.onerror = (error) => {
+                    console.error("Error reading profile picture file:", error);
+                    displayErrorMessage("Failed to read profile picture file.");
+                };
+                reader.readAsDataURL(file);
+            }
+
+            /**
+             * Removes the profile picture from the current chat.
+             */
+            function removeProfilePicture() {
+                chatProfilePicturePreview.src = DEFAULT_AI_PROFILE_SVG;
+                removeProfilePictureButton.classList.add('hidden');
+                chatProfilePictureInput.value = '';
+                if (chatToCustomizeId) {
+                    chatSessions[chatToCustomizeId].profilePicture = '';
+                    saveChatSessionsToStorage();
+                    renderChatList();
+                }
+            }
+
+            /**
+             * Updates the model display in the header.
+             */
+            function updateCurrentModelDisplay() {
+                if (currentChatId && chatSessions[currentChatId]) {
+                    const modelId = chatSessions[currentChatId].selectedModel || defaultGeminiModelId;
+                    const model = availableAiModels.find(m => m.id === modelId);
+                    currentModelDisplay.textContent = `(Model: ${model ? model.displayName : modelId})`;
+                } else {
+                    const model = availableAiModels.find(m => m.id === defaultGeminiModelId);
+                    currentModelDisplay.textContent = `(Model: ${model ? model.displayName : defaultGeminiModelId})`;
+                }
+            }
+
+            /**
+             * Applies formatting to the selected text in the message input.
+             * @param {string} formatType - The type of formatting ('bold', 'italic', 'strikethrough', 'code', 'clear').
+             */
+            function applyFormatting(formatType) {
+                const start = messageInput.selectionStart;
+                const end = messageInput.selectionEnd;
+                const selectedText = messageInput.value.substring(start, end);
+                let newText = selectedText;
+                let prefix = '';
+                let suffix = '';
+
+                switch (formatType) {
+                    case 'bold':
+                        prefix = '**';
+                        suffix = '**';
+                        break;
+                    case 'italic':
+                        prefix = '*';
+                        suffix = '*';
+                        break;
+                    case 'strikethrough':
+                        prefix = '~~';
+                        suffix = '~~';
+                        break;
+                    case 'code':
+                        prefix = '`';
+                        suffix = '`';
+                        break;
+                    case 'clear':
+                        newText = selectedText
+                            .replace(/\*\*(.*?)\*\*/g, '$1')
+                            .replace(/__(.*?)__/g, '$1')
+                            .replace(/\*(.*?)\*/g, '$1')
+                            .replace(/_(.*?)_/g, '$1')
+                            .replace(/~~(.*?)~~/g, '$1')
+                            .replace(/`([^`]+)`/g, '$1');
+                        messageInput.value = messageInput.value.substring(0, start) + newText + messageInput.value.substring(end);
+                        messageInput.setSelectionRange(start, start + newText.length);
+                        return;
+                }
+
+                const currentFullText = messageInput.value;
+                const textBefore = currentFullText.substring(0, start);
+                const textAfter = currentFullText.substring(end);
+
+                if (textBefore.endsWith(prefix) && textAfter.startsWith(suffix) &&
+                    currentFullText.substring(start - prefix.length, end + suffix.length) === `${prefix}${selectedText}${suffix}`) {
+                    
+                    messageInput.value = textBefore.substring(0, textBefore.length - prefix.length) + selectedText + textAfter.substring(suffix.length);
+                    messageInput.setSelectionRange(start - prefix.length, end - prefix.length);
+                } else {
+                    newText = prefix + selectedText + suffix;
+                    messageInput.value = textBefore + newText + textAfter;
+                    messageInput.setSelectionRange(start + prefix.length, end + prefix.length);
+                }
+                messageInput.focus();
+                messageInput.style.height = messageInput.scrollHeight + 'px'; // Adjust textarea height
+            }
+
+            /**
+             * Toggles the collapsed state of the chat sidebar.
+             * @param {boolean} [saveState=true] - Whether to save the new state to localStorage.
+             */
+            function toggleChatSidebar(saveState = true) {
+                if (saveState) {
+                    isChatSidebarCollapsed = !isChatSidebarCollapsed;
+                    localStorage.setItem('isChatSidebarCollapsed', isChatSidebarCollapsed);
+                }
+
+                if (isChatSidebarCollapsed) {
+                    chatSidebar.classList.add('collapsed');
+                    // newChatButton.classList.add('collapsed'); // This is now handled by CSS descendant selectors
+                    collapseIconExpanded.classList.add('hidden');
+                    collapseIconCollapsed.classList.remove('hidden');
+                } else {
+                    chatSidebar.classList.remove('collapsed');
+                    // newChatButton.classList.remove('collapsed'); // This is now handled by CSS descendant selectors
+                    collapseIconExpanded.classList.remove('hidden');
+                    collapseIconCollapsed.classList.add('hidden');
+                }
+
+                document.querySelectorAll('.chat-list-item').forEach(item => {
+                    if (isChatSidebarCollapsed) {
+                        item.classList.add('collapsed');
+                    } else {
+                        item.classList.remove('collapsed');
+                    }
+                });
+            }
+
+
+            // --- Event Listeners ---
+            sendButton.addEventListener('click', sendMessage);
+            messageInput.addEventListener('keypress', (event) => {
+                if (event.key === 'Enter' && !event.shiftKey && !isRecording) { // Allow Shift+Enter for new line
+                    event.preventDefault(); // Prevent default new line
+                    sendMessage();
+                }
+            });
+            // Auto-resize textarea on input
+            messageInput.addEventListener('input', () => {
+                messageInput.style.height = 'auto'; // Reset height
+                messageInput.style.height = messageInput.scrollHeight + 'px'; // Set to scroll height
+            });
+
+
+            settingsButton.addEventListener('click', openSettingsModal);
+            closeModalButton.addEventListener('click', closeSettingsModal);
+            saveSettingsButton.addEventListener('click', saveSettings);
+            openSettingsFromPromptButton.addEventListener('click', openSettingsModal);
+            
+            if(speakerToggleButton) {
+                speakerToggleButton.addEventListener('click', () => {
+                    aiVoiceEnabled = !aiVoiceEnabled;
+                    localStorage.setItem('aiVoiceEnabled', aiVoiceEnabled);
+                    updateSpeakerButtonUI();
+                    if (!aiVoiceEnabled && synth.speaking) synth.cancel();
+                });
+            }
+
+            if(voiceSelectDropdown) {
+                voiceSelectDropdown.addEventListener('change', (event) => {
+                    selectedVoiceURI = event.target.value;
+                    localStorage.setItem('selectedVoiceURI', selectedVoiceURI);
+                });
+            }
+
+            if (imageGenToggleButton) {
+                imageGenToggleButton.addEventListener('click', () => {
+                    isImageGenerationEnabled = !isImageGenerationEnabled;
+                    localStorage.setItem('isImageGenerationEnabled', isImageGenerationEnabled);
+                    updateImageGenButtonUI();
+                });
+            }
+
+            if (shareScreenButton) {
+                shareScreenButton.addEventListener('click', () => {
+                    if (isScreenSharingActive) {
+                        stopScreenSharing();
+                    } else {
+                        startScreenSharing();
+                    }
+                });
+            }
+
+            if (deepResearchToggleButton) {
+                deepResearchToggleButton.addEventListener('click', () => {
+                    showMessageModal("Feature Unavailable", "Deep Research is an experimental feature and is not yet available via the current API. Stay tuned for future updates!");
+                });
+            }
+
+            if (canvasToggleButton) {
+                canvasToggleButton.addEventListener('click', () => {
+                    showMessageModal("Feature Unavailable", "Canvas Mode is an experimental feature and is not yet available via the current API. Stay tuned for future updates!");
+                });
+            }
+
+            // Click outside modals to close
+            window.addEventListener('click', (event) => {
+                if (event.target === settingsModal) closeSettingsModal();
+                if (event.target === confirmationModal) hideConfirmationModal();
+                if (event.target === customizeChatModal) closeCustomizeChatModal();
+                if (event.target === messageModal) hideMessageModal();
+            });
+
+            newChatButton.addEventListener('click', () => startNewChat(true, true));
+            if(micButton) micButton.addEventListener('click', () => {
+                if (isRecording) stopRecording();
+                else startRecording();
+            });
+
+            uploadButton.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', handleFileSelection);
+            
+            if (toggleUploadButton) {
+                toggleUploadButton.addEventListener('change', () => {
+                    showUploadButton = toggleUploadButton.checked;
+                    localStorage.setItem('showUploadButton', showUploadButton);
+                    updateButtonVisibilityUI();
+                });
+            }
+            if (toggleShareScreenButton) {
+                toggleShareScreenButton.addEventListener('change', () => {
+                    showShareScreenButton = toggleShareScreenButton.checked;
+                    localStorage.setItem('showShareScreenButton', showShareScreenButton);
+                    updateButtonVisibilityUI();
+                });
+            }
+            if (toggleImageGenButton) {
+                toggleImageGenButton.addEventListener('change', () => {
+                    showImageGenButton = toggleImageGenButton.checked;
+                    localStorage.setItem('showImageGenButton', showImageGenButton);
+                    updateImageGenButtonUI();
+                });
+            }
+            if (toggleDeepResearchButton) {
+                toggleDeepResearchButton.addEventListener('change', () => {
+                    showDeepResearchButton = toggleDeepResearchButton.checked;
+                    localStorage.setItem('showDeepResearchButton', showDeepResearchButton);
+                    updateButtonVisibilityUI();
+                });
+            }
+            if (toggleCanvasButton) {
+                toggleCanvasButton.addEventListener('change', () => {
+                    showCanvasButton = toggleCanvasButton.checked;
+                    localStorage.setItem('showCanvasButton', showCanvasButton);
+                    updateButtonVisibilityUI();
+                });
+            }
+            if (toggleMicButton) {
+                toggleMicButton.addEventListener('change', () => {
+                    showMicButton = toggleMicButton.checked;
+                    localStorage.setItem('showMicButton', showMicButton);
+                    updateButtonVisibilityUI();
+                });
+            }
+            if (toggleSpeakerButton) {
+                toggleSpeakerButton.addEventListener('change', () => {
+                    showSpeakerButton = toggleSpeakerButton.checked;
+                    localStorage.setItem('showSpeakerButton', showSpeakerButton);
+                    updateButtonVisibilityUI();
+                });
+            }
+            if (toggleThinkingButton) {
+                toggleThinkingButton.addEventListener('change', () => {
+                    showThinkingButton = toggleThinkingButton.checked;
+                    localStorage.setItem('showThinkingButton', showThinkingButton);
+                    updateButtonVisibilityUI();
+                    displayCurrentChatHistory();
+                });
+            }
+
+            closeCustomizeModalButton.addEventListener('click', closeCustomizeChatModal);
+            cancelCustomizeChatButton.addEventListener('click', closeCustomizeChatModal);
+            saveCustomizeChatButton.addEventListener('click', saveCustomizeChat);
+            selectProfilePictureButton.addEventListener('click', () => chatProfilePictureInput.click());
+            chatProfilePictureInput.addEventListener('change', handleProfilePictureSelection);
+            removeProfilePictureButton.addEventListener('click', removeProfilePicture);
+
+            if (formattingToolbar) {
+                formattingToolbar.addEventListener('click', (event) => {
+                    const button = event.target.closest('.formatting-button');
+                    if (button) {
+                        const formatType = button.dataset.format;
+                        if (formatType) {
+                            applyFormatting(formatType);
+                        }
+                    }
+                });
+            }
+
+            // Chat sidebar collapse button
+            collapseChatsButton.addEventListener('click', () => toggleChatSidebar(true));
+
+
+            document.addEventListener('DOMContentLoaded', initializeApp);
+        })(); // End of IIFE
+    </script>
+</body>
+</html>
